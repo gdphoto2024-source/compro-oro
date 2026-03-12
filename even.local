@@ -1,0 +1,2 @@
+DATABASE_URL=postgresql://postgres:miaPassword123@db.abc123.supabase.co:5432/postgres
+GOOGLE_APPLICATION_CREDENTIALS=./ocr-compro-oro-a2bbe2e0b3ad.json

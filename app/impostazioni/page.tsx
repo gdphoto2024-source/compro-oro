@@ -1,0 +1,258 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { supabase } from "../../lib/supabase";
+
+type NegozioData = {
+  nome: string; indirizzo: string; comune: string; provincia: string;
+  cap: string; piva: string; telefono: string; email: string;
+  firma_base64: string; logo_base64: string;
+  numero_scheda_iniziale: number; testo_privacy: string;
+};
+
+const empty: NegozioData = {
+  nome: "", indirizzo: "", comune: "", provincia: "", cap: "",
+  piva: "", telefono: "", email: "",
+  firma_base64: "", logo_base64: "",
+  numero_scheda_iniziale: 1, testo_privacy: "",
+};
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <label style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "#6b7280" }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function SignaturePad({ onSave, onClear, hasFirma }: {
+  onSave: (dataUrl: string) => void;
+  onClear: () => void;
+  hasFirma: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+
+  function getPos(e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      const touch = e.touches[0];
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+    }
+    return { x: ((e as React.MouseEvent).clientX - rect.left) * scaleX, y: ((e as React.MouseEvent).clientY - rect.top) * scaleY };
+  }
+
+  function startDraw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    const canvas = canvasRef.current; if (!canvas) return;
+    drawing.current = true; lastPos.current = getPos(e, canvas);
+  }
+  function draw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    if (!drawing.current) return;
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const pos = getPos(e, canvas);
+    ctx.beginPath(); ctx.moveTo(lastPos.current!.x, lastPos.current!.y);
+    ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = "#1a1a2e";
+    ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+    lastPos.current = pos;
+  }
+  function stopDraw(e: React.MouseEvent | React.TouchEvent) { e.preventDefault(); drawing.current = false; lastPos.current = null; }
+
+  function salva() {
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    if (!data.some(v => v !== 0)) return;
+    onSave(canvas.toDataURL("image/png"));
+  }
+  function pulisci() {
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height); onClear();
+  }
+
+  return (
+    <div>
+      <canvas ref={canvasRef} width={700} height={160}
+        style={{ width: "100%", height: 160, border: hasFirma ? "2px solid #059669" : "2px dashed #6b7280", borderRadius: 10, background: "#fafafa", cursor: "crosshair", touchAction: "none", display: "block" }}
+        onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+        onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw}
+      />
+      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+        <button type="button" style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer", fontWeight: 700, fontSize: 13 }} onClick={salva}>✅ Conferma firma</button>
+        <button type="button" style={{ background: "#f3f4f6", color: "#374151", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 18px", cursor: "pointer", fontWeight: 600, fontSize: 13 }} onClick={pulisci}>🗑 Cancella</button>
+      </div>
+    </div>
+  );
+}
+
+export default function Impostazioni() {
+  const [data, setData] = useState<NegozioData>({ ...empty });
+  const [firmaPreview, setFirmaPreview] = useState("");
+  const [logoPreview, setLogoPreview] = useState("");
+  const [status, setStatus] = useState({ text: "Caricamento...", type: "idle" });
+  const [saving, setSaving] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
+
+  const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
+  const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ background: bg, color, border: "none", borderRadius: 9, padding: "11px 22px", cursor: "pointer", fontWeight: 700, fontSize: 14, fontFamily: "inherit" });
+  const statusColors: any = { idle: "#6b7280", loading: "#2563eb", success: "#059669", error: "#dc2626" };
+
+  useEffect(() => {
+    async function load() {
+      const { data: row, error } = await supabase.from("negozio").select("*").eq("id", 1).single();
+      if (error || !row) { setStatus({ text: "Inserisci i dati del tuo negozio.", type: "idle" }); return; }
+      setData({
+        nome: row.nome || "", indirizzo: row.indirizzo || "",
+        comune: row.comune || "", provincia: row.provincia || "",
+        cap: row.cap || "", piva: row.piva || "",
+        telefono: row.telefono || "", email: row.email || "",
+        firma_base64: row.firma_base64 || "", logo_base64: row.logo_base64 || "",
+        numero_scheda_iniziale: row.numero_scheda_iniziale || 1,
+        testo_privacy: row.testo_privacy || "",
+      });
+      if (row.firma_base64) setFirmaPreview(`data:image/png;base64,${row.firma_base64}`);
+      if (row.logo_base64) setLogoPreview(`data:image/png;base64,${row.logo_base64}`);
+      setStatus({ text: "Dati caricati.", type: "success" });
+    }
+    load();
+  }, []);
+
+  const u = (f: keyof NegozioData, v: any) => setData(p => ({ ...p, [f]: v }));
+
+  async function handleLogo(file: File | null) {
+    if (!file) return;
+    const b64 = await fileToBase64(file);
+    u("logo_base64", b64);
+    setLogoPreview(URL.createObjectURL(file));
+  }
+
+  async function salva() {
+    try {
+      setSaving(true);
+      setStatus({ text: "💾 Salvataggio...", type: "loading" });
+      const { error } = await supabase.from("negozio").upsert({
+        id: 1,
+        nome: data.nome, indirizzo: data.indirizzo,
+        comune: data.comune, provincia: data.provincia,
+        cap: data.cap, piva: data.piva,
+        telefono: data.telefono, email: data.email,
+        firma_base64: data.firma_base64,
+        logo_base64: data.logo_base64,
+        numero_scheda_iniziale: data.numero_scheda_iniziale,
+        testo_privacy: data.testo_privacy,
+      });
+      if (error) throw new Error(error.message);
+      setStatus({ text: "✅ Impostazioni salvate!", type: "success" });
+    } catch (e: any) {
+      setStatus({ text: `❌ Errore: ${e.message}`, type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "24px 16px" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+
+        <div style={{ marginBottom: 28, paddingBottom: 20, borderBottom: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111827", margin: 0 }}>⚙️ Impostazioni Negozio</h1>
+            <p style={{ color: "#6b7280", fontSize: 13, margin: "6px 0 0" }}>Configura i dati del tuo compro oro — vengono usati su tutte le schede</p>
+          </div>
+          <a href="/" style={{ ...btn("#111827"), textDecoration: "none", display: "inline-block" }}>← Torna alle schede</a>
+        </div>
+
+        <div style={{ background: "#fff", border: "1.5px solid #e5e7eb", borderLeft: `4px solid ${statusColors[status.type]}`, borderRadius: 10, padding: "12px 18px", marginBottom: 20, fontSize: 14, color: statusColors[status.type], fontWeight: 500 }}>
+          {status.text}
+        </div>
+
+        {/* Dati negozio */}
+        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 18px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Dati Negozio</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+            <Field label="Nome negozio"><input style={inp} value={data.nome} onChange={e => u("nome", e.target.value)} placeholder="Es. Compro Oro Torino" /></Field>
+            <Field label="Indirizzo"><input style={inp} value={data.indirizzo} onChange={e => u("indirizzo", e.target.value)} /></Field>
+            <Field label="Comune"><input style={inp} value={data.comune} onChange={e => u("comune", e.target.value)} /></Field>
+            <Field label="Provincia"><input style={inp} value={data.provincia} onChange={e => u("provincia", e.target.value)} /></Field>
+            <Field label="CAP"><input style={inp} value={data.cap} onChange={e => u("cap", e.target.value)} /></Field>
+            <Field label="P.IVA / C.F."><input style={inp} value={data.piva} onChange={e => u("piva", e.target.value)} /></Field>
+            <Field label="Telefono"><input style={inp} value={data.telefono} onChange={e => u("telefono", e.target.value)} /></Field>
+            <Field label="Email"><input style={inp} value={data.email} onChange={e => u("email", e.target.value)} /></Field>
+            <Field label="Numero scheda iniziale">
+              <input type="number" style={inp} value={data.numero_scheda_iniziale} onChange={e => u("numero_scheda_iniziale", Number(e.target.value))} />
+            </Field>
+          </div>
+        </section>
+
+        {/* Logo */}
+        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 18px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Logo Negozio</h2>
+          <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
+            {logoPreview
+              ? <img src={logoPreview} alt="Logo" style={{ height: 80, objectFit: "contain", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: 8 }} />
+              : <div style={{ width: 120, height: 80, border: "1.5px dashed #d1d5db", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 12 }}>Nessun logo</div>
+            }
+            <div>
+              <button style={btn("#111827")} onClick={() => logoRef.current?.click()}>📁 Carica logo</button>
+              {logoPreview && <button style={{ ...btn("#fee2e2", "#dc2626"), marginLeft: 10 }} onClick={() => { u("logo_base64", ""); setLogoPreview(""); }}>Rimuovi</button>}
+              <input ref={logoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleLogo(e.target.files?.[0] || null)} />
+              <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>PNG o JPG, sfondo trasparente consigliato</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Firma titolare */}
+        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Firma del Titolare</h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Questa firma apparirà automaticamente su ogni scheda acquisti.</p>
+          {firmaPreview && data.firma_base64 ? (
+            <div>
+              <img src={firmaPreview} alt="Firma titolare" style={{ maxWidth: "100%", height: 100, objectFit: "contain", border: "1.5px solid #059669", borderRadius: 10, background: "#fafafa", display: "block" }} />
+              <button type="button" style={{ marginTop: 12, ...btn("#fee2e2", "#dc2626") }} onClick={() => { u("firma_base64", ""); setFirmaPreview(""); }}>🗑 Rifai la firma</button>
+            </div>
+          ) : (
+            <SignaturePad
+              hasFirma={!!data.firma_base64}
+              onSave={(dataUrl) => { const b64 = dataUrl.split(",")[1]; u("firma_base64", b64); setFirmaPreview(dataUrl); }}
+              onClear={() => { u("firma_base64", ""); setFirmaPreview(""); }}
+            />
+          )}
+        </section>
+
+        {/* Testo privacy */}
+        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Testo Informativa Privacy</h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Questo testo verrà mostrato al cliente prima della firma sulla scheda acquisti.</p>
+          <textarea
+            style={{ ...inp, height: 280, paddingTop: 12, lineHeight: 1.6, resize: "vertical" }}
+            value={data.testo_privacy}
+            onChange={e => u("testo_privacy", e.target.value)}
+            placeholder={`Inserisci qui il testo della tua informativa privacy...\n\nEsempio:\nAi sensi del Regolamento UE 2016/679 (GDPR), La informiamo che i dati personali da Lei forniti saranno trattati da [NOME NEGOZIO], titolare del trattamento, con sede in [INDIRIZZO]...\n\nI dati saranno utilizzati esclusivamente per gli adempimenti previsti dalla normativa vigente in materia di compro oro (D.Lgs. 92/2017) e per gli obblighi antiriciclaggio.\n\nI dati non saranno comunicati a terzi, salvo obblighi di legge.\n\nIl conferimento dei dati è obbligatorio per poter procedere all'operazione.\n\nLei ha diritto di accedere, rettificare, cancellare i propri dati contattando: [EMAIL/TELEFONO]`}
+          />
+        </section>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", paddingBottom: 40 }}>
+          <button style={{ ...btn(saving ? "#9ca3af" : "#059669"), fontSize: 16, padding: "14px 36px" }} onClick={salva} disabled={saving}>
+            {saving ? "⏳ Salvataggio..." : "💾 Salva Impostazioni"}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
