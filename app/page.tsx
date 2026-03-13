@@ -21,6 +21,17 @@ type NegozioInfo = {
   firma_base64: string; logo_base64: string; testo_privacy: string;
 };
 
+type ClienteDB = {
+  id: number; nome: string; cognome: string; codice_fiscale: string;
+  luogo_nascita: string; data_nascita: string; indirizzo: string;
+  comune: string; provincia: string; cap: string;
+  telefono: string; email: string; note: string;
+  tipo_documento?: string; numero_documento?: string;
+  data_rilascio?: string; data_scadenza?: string; ente_rilascio?: string;
+  foto?: { tipo: string; data_base64: string; mime_type: string }[];
+  schede?: { numero_scheda: number; data_operazione: string; totale_valore: number }[];
+};
+
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
 function fileToBase64(file: File): Promise<string> {
@@ -334,6 +345,9 @@ export default function SchedaAcquisti() {
   const backRef = useRef<HTMLInputElement>(null);
   const firmaRef = useRef<HTMLDivElement>(null);
   const firmaRicevutaRef = useRef<HTMLDivElement>(null);
+  const [clientiSuggeriti, setClientiSuggeriti] = useState<ClienteDB[]>([]);
+  const [showSuggerimenti, setShowSuggerimenti] = useState(false);
+  const [clienteSelezionato, setClienteSelezionato] = useState<ClienteDB | null>(null);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
 
@@ -541,6 +555,74 @@ export default function SchedaAcquisti() {
     if (backRef.current) backRef.current.value = "";
   }
 
+  async function cercaClienti(query: string, campo: "cognome" | "nome") {
+    if (query.length < 2) { setClientiSuggeriti([]); setShowSuggerimenti(false); return; }
+    const { data } = await supabase.from("clienti")
+      .select("id,nome,cognome,codice_fiscale,luogo_nascita,data_nascita,indirizzo,comune,provincia,cap,telefono,email,note")
+      .ilike(campo, query + "%")
+      .limit(6);
+    if (data && data.length > 0) { setClientiSuggeriti(data); setShowSuggerimenti(true); }
+    else { setClientiSuggeriti([]); setShowSuggerimenti(false); }
+  }
+
+  async function caricaCliente(cliente: ClienteDB) {
+    setShowSuggerimenti(false);
+    setClienteSelezionato(cliente);
+    // Carica ultima operazione con dati documento
+    const { data: ops } = await supabase.from("operazioni")
+      .select("tipo_documento,numero_documento,data_rilascio,data_scadenza,ente_rilascio,numero_scheda,data_operazione,totale_valore")
+      .eq("cliente_id", cliente.id)
+      .order("numero_scheda", { ascending: false })
+      .limit(1);
+    const lastOp = ops?.[0];
+    // Carica foto documento dell'ultima operazione
+    let fotoDoc: FotoAllegata[] = [];
+    if (lastOp) {
+      const { data: opFull } = await supabase.from("operazioni").select("id").eq("cliente_id", cliente.id).order("numero_scheda", { ascending: false }).limit(1).single();
+      if (opFull) {
+        const { data: fotoDB } = await supabase.from("foto_scheda")
+          .select("tipo,data_base64,mime_type,nome_file")
+          .eq("operazione_id", opFull.id)
+          .in("tipo", ["documento_fronte", "documento_retro"]);
+        if (fotoDB) {
+          fotoDoc = fotoDB.map(f => ({
+            nome: f.tipo === "documento_fronte" ? "fronte_" + (f.nome_file || "doc.jpg") : "retro_" + (f.nome_file || "doc.jpg"),
+            mimeType: f.mime_type || "image/jpeg",
+            base64: f.data_base64,
+            preview: `data:${f.mime_type};base64,${f.data_base64}`
+          }));
+        }
+      }
+    }
+    setCustomer({
+      nome: cliente.nome || "",
+      cognome: cliente.cognome || "",
+      luogoNascita: cliente.luogo_nascita || "",
+      dataNascita: cliente.data_nascita || "",
+      indirizzo: cliente.indirizzo || "",
+      comune: cliente.comune || "",
+      provincia: cliente.provincia || "",
+      cap: cliente.cap || "",
+      codiceFiscale: cliente.codice_fiscale || "",
+      tipoDocumento: lastOp?.tipo_documento || "Carta di identità",
+      numeroDocumento: lastOp?.numero_documento || "",
+      dataRilascio: lastOp?.data_rilascio || "",
+      dataScadenza: lastOp?.data_scadenza || "",
+      enteRilascio: lastOp?.ente_rilascio || "",
+      telefono: cliente.telefono || "",
+      email: cliente.email || "",
+      note: cliente.note || "",
+    });
+    if (fotoDoc.length > 0) {
+      setFotoDocumento(fotoDoc);
+      const fronte = fotoDoc.find(f => f.nome.startsWith("fronte_"));
+      const retro = fotoDoc.find(f => f.nome.startsWith("retro_"));
+      if (fronte) { setFrontPreview(fronte.preview); }
+      if (retro) { setBackPreview(retro.preview); }
+    }
+    setStatus({ text: `✅ Cliente caricato: ${cliente.cognome} ${cliente.nome} — dati e foto documento ripristinati.`, type: "success" });
+  }
+
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
   const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ background: bg, color, border: "none", borderRadius: 9, padding: "11px 20px", cursor: "pointer", fontWeight: 700, fontSize: 14, fontFamily: "inherit" });
   const statusColors: any = { idle: "#6b7280", loading: "#2563eb", success: "#059669", error: "#dc2626" };
@@ -630,10 +712,50 @@ export default function SchedaAcquisti() {
 
         {/* 2. Dati Cliente */}
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 18px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>2 — Dati Cliente</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>2 — Dati Cliente</h2>
+            {clienteSelezionato && (
+              <span style={{ fontSize: 12, background: "#d1fae5", color: "#065f46", padding: "4px 10px", borderRadius: 6, fontWeight: 700 }}>
+                👤 Cliente esistente caricato
+              </span>
+            )}
+          </div>
+
+          {/* Autocomplete Cognome + Nome */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div style={{ position: "relative" }}>
+              <Field label="Cognome">
+                <input style={inp} value={customer.cognome}
+                  onChange={e => { uc("cognome", e.target.value); cercaClienti(e.target.value, "cognome"); }}
+                  onBlur={() => setTimeout(() => setShowSuggerimenti(false), 200)}
+                  placeholder="Inizia a scrivere..." autoComplete="off" />
+              </Field>
+              {showSuggerimenti && clientiSuggeriti.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #2563eb", borderRadius: 8, zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 220, overflowY: "auto" }}>
+                  {clientiSuggeriti.map(c => (
+                    <div key={c.id} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14 }}
+                      onMouseDown={() => caricaCliente(c)}>
+                      <strong>{c.cognome} {c.nome}</strong>
+                      {c.codice_fiscale && <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>{c.codice_fiscale}</span>}
+                      {c.comune && <span style={{ marginLeft: 8, fontSize: 12, color: "#9ca3af" }}>{c.comune}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ position: "relative" }}>
+              <Field label="Nome">
+                <input style={inp} value={customer.nome}
+                  onChange={e => { uc("nome", e.target.value); cercaClienti(e.target.value, "nome"); }}
+                  onBlur={() => setTimeout(() => setShowSuggerimenti(false), 200)}
+                  placeholder="Inizia a scrivere..." autoComplete="off" />
+              </Field>
+            </div>
+          </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             {([
-              ["Cognome", "cognome"], ["Nome", "nome"], ["Nato a", "luogoNascita"],
+              ["Nato a", "luogoNascita"],
               ["Data di nascita", "dataNascita", "date"], ["Residente in", "indirizzo"],
               ["Comune", "comune"], ["Provincia", "provincia"], ["CAP", "cap"],
               ["Tipo documento", "tipoDocumento"], ["Nr. documento", "numeroDocumento"],
