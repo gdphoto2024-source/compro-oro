@@ -515,7 +515,8 @@ export default function SchedaAcquisti() {
       if (privacyDati.firma2) await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_privacy2", nome_file: "firma_privacy2.png", mime_type: "image/png", data_base64: privacyDati.firma2 });
       if (privacyDati.firma3) await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_privacy3", nome_file: "firma_privacy3.png", mime_type: "image/png", data_base64: privacyDati.firma3 });
       // Salva consensi nelle note operazione
-      await supabase.from("operazioni").update({ note_operazione: (noteOperazione ? noteOperazione + " | " : "") + \`PRIVACY: consenso1=\${privacyDati.consenso1?"SI":"NO"} consenso2=\${privacyDati.consenso2?"SI":"NO"} consenso3=\${privacyDati.consenso3?"SI":"NO"}\` }).eq("id", operazioneId);
+      const privacyNote = "PRIVACY: consenso1=" + (privacyDati.consenso1?"SI":"NO") + " consenso2=" + (privacyDati.consenso2?"SI":"NO") + " consenso3=" + (privacyDati.consenso3?"SI":"NO");
+      await supabase.from("operazioni").update({ note_operazione: (noteOperazione ? noteOperazione + " | " : "") + privacyNote }).eq("id", operazioneId);
 
       setSavedOk(true);
       setStatus({ text: `✅ Scheda n° ${numeroScheda} salvata con firma e privacy!`, type: "success" });
