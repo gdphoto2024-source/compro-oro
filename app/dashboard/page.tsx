@@ -66,7 +66,7 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
 <title>Scheda N° ${scheda.numero_scheda}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 18px; color: #000; background: #fff; padding: 28px 36px; }
+  body { font-family: Arial, sans-serif; font-size: 28px; color: #000; background: #fff; padding: 28px 36px; }
   .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
   .top-bar-left { font-size: 13px; }
   .top-bar-scheda { font-size: 16px; font-weight: 800; }
