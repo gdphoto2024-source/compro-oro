@@ -417,6 +417,78 @@ export default function SchedaAcquisti() {
     }
   }
 
+  async function runOCREntrambi() {
+    if (loading) return;
+    if (!frontFile && !backFile) {
+      setStatus({ text: "⚠️ Carica almeno un documento (fronte o retro) prima di procedere.", type: "error" });
+      return;
+    }
+    try {
+      setLoading(true);
+      setStatus({ text: "🤖 Analisi documento con Claude AI...", type: "loading" });
+
+      const content: any[] = [];
+      if (frontFile) {
+        const b64 = await fileToBase64(frontFile);
+        content.push({ type: "image", source: { type: "base64", media_type: frontFile.type || "image/jpeg", data: b64 } });
+        content.push({ type: "text", text: "Questa è la FRONTE del documento." });
+      }
+      if (backFile) {
+        const b64 = await fileToBase64(backFile);
+        content.push({ type: "image", source: { type: "base64", media_type: backFile.type || "image/jpeg", data: b64 } });
+        content.push({ type: "text", text: "Questo è il RETRO del documento." });
+      }
+      content.push({ type: "text", text: `Sei un sistema OCR specializzato in documenti di identità italiani.
+Analizza le immagini del documento e estrai TUTTI i dati visibili combinando fronte e retro.
+Rispondi SOLO con un oggetto JSON valido (niente testo prima o dopo), con questi campi:
+{
+  "nome": "","cognome": "","luogoNascita": "","dataNascita": "YYYY-MM-DD",
+  "indirizzo": "","comune": "","provincia": "","cap": "",
+  "codiceFiscale": "","tipoDocumento": "","numeroDocumento": "",
+  "dataRilascio": "YYYY-MM-DD","dataScadenza": "YYYY-MM-DD","enteRilascio": "",
+  "rawTextFronte": "(testo visibile nel fronte)","rawTextRetro": "(testo visibile nel retro)"
+}
+Regole: date YYYY-MM-DD, campi non visibili stringa vuota, CF 16 caratteri,
+tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY || "",
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 1000, messages: [{ role: "user", content }] })
+      });
+      if (!response.ok) { const err = await response.json(); throw new Error(err?.error?.message || "Errore API Claude"); }
+      const data = await response.json();
+      const text = data.content?.map((b: any) => b.text || "").join("") || "";
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+
+      setFrontRawText(parsed.rawTextFronte || "");
+      setBackRawText(parsed.rawTextRetro || "");
+      setCustomer((prev: any) => ({
+        ...prev,
+        nome: parsed.nome || prev.nome, cognome: parsed.cognome || prev.cognome,
+        luogoNascita: parsed.luogoNascita || prev.luogoNascita, dataNascita: parsed.dataNascita || prev.dataNascita,
+        indirizzo: parsed.indirizzo || prev.indirizzo, comune: parsed.comune || prev.comune,
+        provincia: parsed.provincia || prev.provincia, cap: parsed.cap || prev.cap,
+        codiceFiscale: parsed.codiceFiscale || prev.codiceFiscale,
+        tipoDocumento: parsed.tipoDocumento || prev.tipoDocumento,
+        numeroDocumento: parsed.numeroDocumento || prev.numeroDocumento,
+        dataRilascio: parsed.dataRilascio || prev.dataRilascio,
+        dataScadenza: parsed.dataScadenza || prev.dataScadenza,
+        enteRilascio: parsed.enteRilascio || prev.enteRilascio,
+      }));
+      setStatus({ text: "✅ Documento analizzato! Verifica i dati compilati automaticamente.", type: "success" });
+    } catch (e: any) {
+      setStatus({ text: `❌ Errore: ${e.message}`, type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Primo click su Salva → apre popup privacy
   function handleSalvaClick() {
     if (!customer.cognome || !customer.nome) {
@@ -667,22 +739,26 @@ export default function SchedaAcquisti() {
         {/* 1. Documenti */}
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 18px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>1 — Documenti</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 16 }}>
             {[
-              { label: "Fronte documento", file: frontFile, preview: frontPreview, action: () => runOCR(frontFile, "front") },
-              { label: "Retro documento", file: backFile, preview: backPreview, action: () => runOCR(backFile, "back") },
-            ].map(({ label, file, preview, action }) => (
+              { label: "Fronte documento", file: frontFile, preview: frontPreview },
+              { label: "Retro documento", file: backFile, preview: backPreview },
+            ].map(({ label, file, preview }) => (
               <div key={label} style={{ border: "1.5px solid #e5e7eb", borderRadius: 12, padding: 16, background: "#fafafa" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{label}</div>
                 <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>{file?.name || "Nessun file"}</div>
-                {preview ? <img src={preview} alt={label} style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb", marginBottom: 12 }} />
-                  : <div style={{ width: "100%", height: 180, borderRadius: 8, border: "1.5px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>Nessuna anteprima</div>}
-                <button style={{ ...btn(file && !loading ? "#2563eb" : "#9ca3af"), width: "100%" }} onClick={action} disabled={!file || loading}>
-                  {loading ? "⏳ Elaborazione..." : "🤖 Leggi con Claude AI"}
-                </button>
+                {preview ? <img src={preview} alt={label} style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
+                  : <div style={{ width: "100%", height: 180, borderRadius: 8, border: "1.5px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 13 }}>Nessuna anteprima</div>}
               </div>
             ))}
           </div>
+          <button
+            style={{ ...btn((frontFile || backFile) && !loading ? "#2563eb" : "#9ca3af"), width: "100%", fontSize: 15, padding: "13px 20px" }}
+            onClick={runOCREntrambi}
+            disabled={(!frontFile && !backFile) || loading}
+          >
+            {loading ? "⏳ Elaborazione in corso..." : "🤖 Leggi documenti con Claude AI"}
+          </button>
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1.5px solid #e5e7eb" }}>
             <FotoUploader
               foto={fotoDocumento.filter(f => !f.nome.startsWith("fronte_") && !f.nome.startsWith("retro_"))}
