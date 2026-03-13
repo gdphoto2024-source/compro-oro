@@ -250,6 +250,7 @@ export default function SchedaAcquisti() {
   const [backRawText, setBackRawText] = useState("");
   const [fotoDocumento, setFotoDocumento] = useState<FotoAllegata[]>([]);
   const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+  const [firmaRicevutaDataUrl, setFirmaRicevutaDataUrl] = useState<string | null>(null);
   const [negozio, setNegozio] = useState<NegozioInfo | null>(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [firmaPrivacyBase64, setFirmaPrivacyBase64] = useState<string | null>(null);
@@ -260,6 +261,7 @@ export default function SchedaAcquisti() {
   const frontRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
   const firmaRef = useRef<HTMLDivElement>(null);
+  const firmaRicevutaRef = useRef<HTMLDivElement>(null);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
 
@@ -337,6 +339,11 @@ export default function SchedaAcquisti() {
     if (!firmaDataUrl) {
       setStatus({ text: "✍️ La firma del cliente è obbligatoria. Fai firmare il cliente nella sezione 4.", type: "error" });
       firmaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (!firmaRicevutaDataUrl) {
+      setStatus({ text: "✍️ La firma per la ricevuta riepilogativa è obbligatoria (ultima sezione).", type: "error" });
+      firmaRicevutaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     // Apre popup privacy
@@ -425,6 +432,9 @@ export default function SchedaAcquisti() {
       // 6. Firma cliente scheda
       if (firmaDataUrl) {
         await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_cliente", nome_file: "firma.png", mime_type: "image/png", data_base64: firmaDataUrl.split(",")[1] });
+      }
+      if (firmaRicevutaDataUrl) {
+        await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_ricevuta", nome_file: "firma_ricevuta.png", mime_type: "image/png", data_base64: firmaRicevutaDataUrl.split(",")[1] });
       }
 
       // 7. Firma privacy
@@ -610,6 +620,14 @@ export default function SchedaAcquisti() {
             </h2>
             {firmaDataUrl && <span style={{ fontSize: 13, color: "#059669", fontWeight: 700 }}>✔ Acquisita</span>}
           </div>
+          {/* Testo dichiarazione */}
+          <div style={{ background: "#fffef0", border: "1.5px solid #d97706", borderRadius: 10, padding: "14px 18px", marginBottom: 16, fontSize: 14, lineHeight: 1.7, color: "#1a1a1a" }}>
+            <strong>Il/La sottoscritto/a dichiara che:</strong><br />
+            • gli oggetti indicati nella presente scheda sono di sua esclusiva proprietà;<br />
+            • sugli stessi non esistono vincoli, garanzie e/o pegni di qualsivoglia natura;<br />
+            • autorizza il trattamento dei propri dati personali ai sensi del GDPR 2016/679;<br />
+            • prende atto che gli oggetti saranno ceduti per la fusione a <strong>Plus Valenza Srl</strong>, Via dell&apos;Artigianato 99, 15048 Valenza (AL).
+          </div>
           <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16, marginTop: 4 }}>Il cliente firma con il dito (o mouse). Premere "Conferma firma".</p>
           {firmaDataUrl ? (
             <div>
@@ -658,6 +676,27 @@ export default function SchedaAcquisti() {
             <TextBox title="Testo fronte" text={frontRawText || "Nessun testo estratto."} />
             <TextBox title="Testo retro" text={backRawText || "Nessun testo estratto."} />
           </div>
+        </section>
+
+        {/* 7. Firma Ricevuta Riepilogativa */}
+        <section ref={firmaRicevutaRef} style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: !firmaRicevutaDataUrl ? "2px solid #fbbf24" : "2px solid #059669" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+              7 — Per Consegna Ricevuta Riepilogativa {!firmaRicevutaDataUrl && <span style={{ color: "#dc2626", fontSize: 13 }}>* obbligatoria</span>}
+            </h2>
+            {firmaRicevutaDataUrl && <span style={{ fontSize: 13, color: "#059669", fontWeight: 700 }}>✔ Acquisita</span>}
+          </div>
+          <div style={{ background: "#f0f9ff", border: "1.5px solid #2563eb", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 14, lineHeight: 1.7, color: "#1a1a1a" }}>
+            Il cliente firma per <strong>ricevuta della presente scheda riepilogativa</strong> e conferma di aver ricevuto il pagamento di <strong>{currency(totale)}</strong> mediante <strong>{mezzoPagamento || "contanti"}</strong>{croTrn ? ` (CRO/TRN: ${croTrn})` : ""}.
+          </div>
+          {firmaRicevutaDataUrl ? (
+            <div>
+              <img src={firmaRicevutaDataUrl} alt="Firma ricevuta" style={{ maxWidth: "100%", height: 120, objectFit: "contain", border: "1.5px solid #059669", borderRadius: 10, background: "#fafafa", display: "block" }} />
+              <button type="button" style={{ marginTop: 12, background: "#f3f4f6", color: "#374151", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14 }} onClick={() => setFirmaRicevutaDataUrl(null)}>🗑 Rifai la firma</button>
+            </div>
+          ) : (
+            <SignaturePad onSave={setFirmaRicevutaDataUrl} onClear={() => setFirmaRicevutaDataUrl(null)} hasFirma={false} />
+          )}
         </section>
 
         {/* Bottoni fondo */}
