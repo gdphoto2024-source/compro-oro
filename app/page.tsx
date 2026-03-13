@@ -582,25 +582,7 @@ export default function SchedaAcquisti() {
       .order("numero_scheda", { ascending: false })
       .limit(1);
     const lastOp = ops?.[0];
-    // Carica foto documento dell'ultima operazione
-    let fotoDoc: FotoAllegata[] = [];
-    if (lastOp) {
-      const { data: opFull } = await supabase.from("operazioni").select("id").eq("cliente_id", cliente.id).order("numero_scheda", { ascending: false }).limit(1).single();
-      if (opFull) {
-        const { data: fotoDB } = await supabase.from("foto_scheda")
-          .select("tipo,data_base64,mime_type,nome_file")
-          .eq("operazione_id", opFull.id)
-          .in("tipo", ["documento_fronte", "documento_retro"]);
-        if (fotoDB) {
-          fotoDoc = fotoDB.map(f => ({
-            nome: f.tipo === "documento_fronte" ? "fronte_" + (f.nome_file || "doc.jpg") : "retro_" + (f.nome_file || "doc.jpg"),
-            mimeType: f.mime_type || "image/jpeg",
-            base64: f.data_base64,
-            preview: `data:${f.mime_type};base64,${f.data_base64}`
-          }));
-        }
-      }
-    }
+    // Foto documento NON caricate automaticamente (cliente porta il documento fisico ogni volta)
     setCustomer({
       nome: cliente.nome || "",
       cognome: cliente.cognome || "",
@@ -620,13 +602,7 @@ export default function SchedaAcquisti() {
       email: cliente.email || "",
       note: cliente.note || "",
     });
-    if (fotoDoc.length > 0) {
-      setFotoDocumento(fotoDoc);
-      const fronte = fotoDoc.find(f => f.nome.startsWith("fronte_"));
-      const retro = fotoDoc.find(f => f.nome.startsWith("retro_"));
-      if (fronte) { setFrontPreview(fronte.preview); }
-      if (retro) { setBackPreview(retro.preview); }
-    }
+
     const privacyMsg = cliente.privacy_accettata ? " — ✅ privacy già firmata, non verrà richiesta." : " — ⚠️ privacy da firmare.";
     setStatus({ text: `👤 Cliente caricato: ${cliente.cognome} ${cliente.nome}${privacyMsg}`, type: "success" });
   }
