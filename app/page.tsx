@@ -26,6 +26,7 @@ type ClienteDB = {
   luogo_nascita: string; data_nascita: string; indirizzo: string;
   comune: string; provincia: string; cap: string;
   telefono: string; email: string; note: string;
+  privacy_accettata?: boolean;
   tipo_documento?: string; numero_documento?: string;
   data_rilascio?: string; data_scadenza?: string; ente_rilascio?: string;
   foto?: { tipo: string; data_base64: string; mime_type: string }[];
@@ -432,6 +433,12 @@ export default function SchedaAcquisti() {
       firmaRicevutaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    // Salta privacy se cliente già registrato con privacy accettata
+    if (clienteSelezionato?.privacy_accettata) {
+      const datiPrivacyVuoti = { firma1: "", firma2: "", firma3: "", consenso1: true, consenso2: true, consenso3: true };
+      salvaScheda(datiPrivacyVuoti);
+      return;
+    }
     // Apre popup privacy
     setShowPrivacy(true);
   }
@@ -558,7 +565,7 @@ export default function SchedaAcquisti() {
   async function cercaClienti(query: string, campo: "cognome" | "nome") {
     if (query.length < 2) { setClientiSuggeriti([]); setShowSuggerimenti(false); return; }
     const { data } = await supabase.from("clienti")
-      .select("id,nome,cognome,codice_fiscale,luogo_nascita,data_nascita,indirizzo,comune,provincia,cap,telefono,email,note")
+      .select("id,nome,cognome,codice_fiscale,luogo_nascita,data_nascita,indirizzo,comune,provincia,cap,telefono,email,note,privacy_accettata")
       .ilike(campo, query + "%")
       .limit(6);
     if (data && data.length > 0) { setClientiSuggeriti(data); setShowSuggerimenti(true); }
@@ -620,7 +627,8 @@ export default function SchedaAcquisti() {
       if (fronte) { setFrontPreview(fronte.preview); }
       if (retro) { setBackPreview(retro.preview); }
     }
-    setStatus({ text: `✅ Cliente caricato: ${cliente.cognome} ${cliente.nome} — dati e foto documento ripristinati.`, type: "success" });
+    const privacyMsg = cliente.privacy_accettata ? " — ✅ privacy già firmata, non verrà richiesta." : " — ⚠️ privacy da firmare.";
+    setStatus({ text: `👤 Cliente caricato: ${cliente.cognome} ${cliente.nome}${privacyMsg}`, type: "success" });
   }
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
@@ -775,6 +783,11 @@ export default function SchedaAcquisti() {
             <div style={{ marginTop: 16, padding: 12, background: "#d1fae5", borderRadius: 10, border: "1px solid #059669" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#065f46", marginBottom: 8 }}>✅ PRIVACY ACCETTATA — {new Date().toLocaleDateString("it-IT")}</div>
               <img src={`data:image/png;base64,${firmaPrivacyBase64}`} alt="Firma privacy" style={{ height: 60, objectFit: "contain", background: "#fff", borderRadius: 6, border: "1px solid #a7f3d0" }} />
+            </div>
+          )}
+          {clienteSelezionato?.privacy_accettata && !firmaPrivacyBase64 && (
+            <div style={{ marginTop: 16, padding: 12, background: "#eff6ff", borderRadius: 10, border: "1px solid #2563eb" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1d4ed8" }}>✅ Privacy già firmata in precedenza — non verrà richiesta nuovamente al salvataggio.</div>
             </div>
           )}
         </section>
