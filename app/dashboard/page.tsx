@@ -187,7 +187,10 @@ ${firmaPrivacy ? `<div class="privacy-badge">✅ Informativa privacy accettata d
   </div>
 </div>
 
-<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ccc;font-size:10px;color:#888;text-align:center">
+<div style="margin-top:16px;padding:10px 14px;border:1px solid #ccc;border-radius:4px;font-size:12px;color:#333;text-align:center">
+  Tutti gli oggetti saranno ceduti per la fusione a <strong>Plus Valenza Srl</strong>, Via dell&apos;Artigianato 99 Zona D3 &nbsp; 15048 Valenza (AL) &nbsp; P.Iva: 02134200068
+</div>
+<div style="margin-top:10px;padding-top:10px;border-top:1px solid #ccc;font-size:10px;color:#888;text-align:center">
   SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generata il ${new Date().toLocaleDateString("it-IT")}
 </div>
 
