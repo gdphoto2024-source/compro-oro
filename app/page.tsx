@@ -35,6 +35,10 @@ function NavBar() {
           </a>
         );
       })}
+      <button
+        style={{ marginLeft: "auto", background: "#dc2626", color: "#fff", border: "none", borderRadius: 7, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+        onClick={async () => { await fetch("/api/logout", { method: "POST" }); window.location.href = "/login"; }}
+      >🚪 Logout</button>
     </nav>
   );
 }
@@ -403,6 +407,7 @@ export default function SchedaAcquisti() {
   const [clientiSuggeriti, setClientiSuggeriti] = useState<ClienteDB[]>([]);
   const [showSuggerimenti, setShowSuggerimenti] = useState(false);
   const [clienteSelezionato, setClienteSelezionato] = useState<ClienteDB | null>(null);
+  const [avvisoOmonimi, setAvvisoOmonimi] = useState<ClienteDB[]>([]);
   const [lightbox, setLightbox] = useState<{ src: string; nome: string } | null>(null);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
@@ -792,17 +797,33 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
   }
 
   async function cercaClienti(query: string, campo: "cognome" | "nome") {
-    if (query.length < 2) { setClientiSuggeriti([]); setShowSuggerimenti(false); return; }
+    if (query.length < 2) { setClientiSuggeriti([]); setShowSuggerimenti(false); setAvvisoOmonimi([]); return; }
     const { data } = await supabase.from("clienti")
       .select("id,nome,cognome,codice_fiscale,luogo_nascita,data_nascita,indirizzo,comune,provincia,cap,telefono,email,note,privacy_accettata")
       .ilike(campo, query + "%")
-      .limit(6);
-    if (data && data.length > 0) { setClientiSuggeriti(data); setShowSuggerimenti(true); }
-    else { setClientiSuggeriti([]); setShowSuggerimenti(false); }
+      .limit(10);
+    if (data && data.length > 0) {
+      setClientiSuggeriti(data);
+      setShowSuggerimenti(true);
+      // Rileva omonimi: stessa coppia nome+cognome con CF diverso
+      const gruppi: Record<string, ClienteDB[]> = {};
+      data.forEach(c => {
+        const key = `${c.cognome.toLowerCase().trim()} ${c.nome.toLowerCase().trim()}`;
+        if (!gruppi[key]) gruppi[key] = [];
+        gruppi[key].push(c);
+      });
+      const omonimi = Object.values(gruppi).filter(g => g.length > 1).flat();
+      setAvvisoOmonimi(omonimi);
+    } else {
+      setClientiSuggeriti([]);
+      setShowSuggerimenti(false);
+      setAvvisoOmonimi([]);
+    }
   }
 
   async function caricaCliente(cliente: ClienteDB) {
     setShowSuggerimenti(false);
+    setAvvisoOmonimi([]);
     setClienteSelezionato(cliente);
     // Carica ultima operazione con dati documento
     const { data: ops } = await supabase.from("operazioni")
@@ -951,15 +972,32 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
                   placeholder="Inizia a scrivere..." autoComplete="off" />
               </Field>
               {showSuggerimenti && clientiSuggeriti.length > 0 && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #2563eb", borderRadius: 8, zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 220, overflowY: "auto" }}>
-                  {clientiSuggeriti.map(c => (
-                    <div key={c.id} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14 }}
-                      onMouseDown={() => caricaCliente(c)}>
-                      <strong>{c.cognome} {c.nome}</strong>
-                      {c.codice_fiscale && <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>{c.codice_fiscale}</span>}
-                      {c.comune && <span style={{ marginLeft: 8, fontSize: 12, color: "#9ca3af" }}>{c.comune}</span>}
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #2563eb", borderRadius: 8, zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 260, overflowY: "auto" }}>
+                  {avvisoOmonimi.length > 0 && (
+                    <div style={{ background: "#fffbeb", borderBottom: "1.5px solid #fbbf24", padding: "8px 14px", fontSize: 12, color: "#92400e", fontWeight: 700 }}>
+                      ⚠️ Attenzione: esistono {avvisoOmonimi.length} clienti con lo stesso nome — verifica il Codice Fiscale!
                     </div>
-                  ))}
+                  )}
+                  {clientiSuggeriti.map(c => {
+                    const isOmonimo = avvisoOmonimi.some(o => o.id === c.id);
+                    return (
+                      <div key={c.id}
+                        style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14, background: isOmonimo ? "#fffbeb" : "#fff" }}
+                        onMouseDown={() => caricaCliente(c)}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {isOmonimo && <span style={{ fontSize: 13 }}>⚠️</span>}
+                          <strong>{c.cognome} {c.nome}</strong>
+                        </div>
+                        <div style={{ marginTop: 3, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          {c.codice_fiscale
+                            ? <span style={{ fontSize: 12, fontWeight: 700, color: isOmonimo ? "#d97706" : "#2563eb", fontFamily: "monospace" }}>CF: {c.codice_fiscale}</span>
+                            : <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 700 }}>⚠ CF mancante</span>}
+                          {c.data_nascita && <span style={{ fontSize: 12, color: "#6b7280" }}>Nato: {new Date(c.data_nascita).toLocaleDateString("it-IT")}</span>}
+                          {c.comune && <span style={{ fontSize: 12, color: "#9ca3af" }}>{c.comune}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -972,6 +1010,34 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
               </Field>
             </div>
           </div>
+
+          {avvisoOmonimi.length > 0 && (
+            <div style={{ background: "#fffbeb", border: "2px solid #f59e0b", borderRadius: 10, padding: "12px 16px", marginBottom: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#92400e", marginBottom: 8 }}>
+                ⚠️ ATTENZIONE — Esistono {avvisoOmonimi.length} clienti con questo nome!
+              </div>
+              <div style={{ fontSize: 13, color: "#78350f", marginBottom: 8 }}>
+                Verifica di aver selezionato il cliente corretto controllando il <strong>Codice Fiscale</strong>:
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {avvisoOmonimi.map(o => (
+                  <div key={o.id}
+                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: clienteSelezionato?.id === o.id ? "#fef3c7" : "#fff", border: clienteSelezionato?.id === o.id ? "2px solid #f59e0b" : "1px solid #fde68a", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
+                    onClick={() => caricaCliente(o)}>
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{o.cognome} {o.nome}</span>
+                      {o.data_nascita && <span style={{ marginLeft: 10, fontSize: 12, color: "#78350f" }}>Nato: {new Date(o.data_nascita).toLocaleDateString("it-IT")}</span>}
+                      {o.comune && <span style={{ marginLeft: 10, fontSize: 12, color: "#9ca3af" }}>{o.comune}</span>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 800, fontSize: 13, color: "#d97706" }}>{o.codice_fiscale || "CF mancante"}</span>
+                      {clienteSelezionato?.id === o.id && <span style={{ fontSize: 12, background: "#f59e0b", color: "#fff", borderRadius: 4, padding: "2px 8px", fontWeight: 700 }}>✓ Selezionato</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             {([
