@@ -106,7 +106,9 @@ export default function Impostazioni() {
   const [logoPreview, setLogoPreview] = useState("");
   const [status, setStatus] = useState({ text: "Caricamento...", type: "idle" });
   const [saving, setSaving] = useState(false);
+  const [firmaMode, setFirmaMode] = useState<"disegna" | "carica">("disegna");
   const logoRef = useRef<HTMLInputElement>(null);
+  const firmaFileRef = useRef<HTMLInputElement>(null);
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
   const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ background: bg, color, border: "none", borderRadius: 9, padding: "11px 22px", cursor: "pointer", fontWeight: 700, fontSize: 14, fontFamily: "inherit" });
@@ -139,6 +141,13 @@ export default function Impostazioni() {
     const b64 = await fileToBase64(file);
     u("logo_base64", b64);
     setLogoPreview(URL.createObjectURL(file));
+  }
+
+  async function handleFirmaFile(file: File | null) {
+    if (!file) return;
+    const b64 = await fileToBase64(file);
+    u("firma_base64", b64);
+    setFirmaPreview(`data:${file.type};base64,${b64}`);
   }
 
   async function salva() {
@@ -220,17 +229,40 @@ export default function Impostazioni() {
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Firma del Titolare</h2>
           <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Questa firma apparirà automaticamente su ogni scheda acquisti.</p>
+
           {firmaPreview && data.firma_base64 ? (
             <div>
               <img src={firmaPreview} alt="Firma titolare" style={{ maxWidth: "100%", height: 100, objectFit: "contain", border: "1.5px solid #059669", borderRadius: 10, background: "#fafafa", display: "block" }} />
-              <button type="button" style={{ marginTop: 12, ...btn("#fee2e2", "#dc2626") }} onClick={() => { u("firma_base64", ""); setFirmaPreview(""); }}>🗑 Rifai la firma</button>
+              <button type="button" style={{ marginTop: 12, ...btn("#fee2e2", "#dc2626") }} onClick={() => { u("firma_base64", ""); setFirmaPreview(""); }}>🗑 Rimuovi firma</button>
             </div>
           ) : (
-            <SignaturePad
-              hasFirma={!!data.firma_base64}
-              onSave={(dataUrl) => { const b64 = dataUrl.split(",")[1]; u("firma_base64", b64); setFirmaPreview(dataUrl); }}
-              onClear={() => { u("firma_base64", ""); setFirmaPreview(""); }}
-            />
+            <div>
+              {/* Tab disegna / carica */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button type="button"
+                  style={{ ...btn(firmaMode === "disegna" ? "#111827" : "#f3f4f6", firmaMode === "disegna" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }}
+                  onClick={() => setFirmaMode("disegna")}>✏️ Disegna</button>
+                <button type="button"
+                  style={{ ...btn(firmaMode === "carica" ? "#111827" : "#f3f4f6", firmaMode === "carica" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }}
+                  onClick={() => setFirmaMode("carica")}>📁 Carica file</button>
+              </div>
+
+              {firmaMode === "disegna" ? (
+                <SignaturePad
+                  hasFirma={!!data.firma_base64}
+                  onSave={(dataUrl) => { const b64 = dataUrl.split(",")[1]; u("firma_base64", b64); setFirmaPreview(dataUrl); }}
+                  onClear={() => { u("firma_base64", ""); setFirmaPreview(""); }}
+                />
+              ) : (
+                <div style={{ border: "2px dashed #d1d5db", borderRadius: 10, padding: 32, textAlign: "center", background: "#fafafa" }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>🖊️</div>
+                  <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>Carica un file immagine della firma del titolare</p>
+                  <button type="button" style={btn("#2563eb")} onClick={() => firmaFileRef.current?.click()}>📁 Scegli file firma</button>
+                  <input ref={firmaFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => handleFirmaFile(e.target.files?.[0] || null)} />
+                  <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 12 }}>PNG con sfondo trasparente consigliato — JPG accettato</p>
+                </div>
+              )}
+            </div>
           )}
         </section>
 
@@ -242,7 +274,7 @@ export default function Impostazioni() {
             style={{ ...inp, height: 280, paddingTop: 12, lineHeight: 1.6, resize: "vertical" }}
             value={data.testo_privacy}
             onChange={e => u("testo_privacy", e.target.value)}
-            placeholder={`Inserisci qui il testo della tua informativa privacy...\n\nEsempio:\nAi sensi del Regolamento UE 2016/679 (GDPR), La informiamo che i dati personali da Lei forniti saranno trattati da [NOME NEGOZIO], titolare del trattamento, con sede in [INDIRIZZO]...\n\nI dati saranno utilizzati esclusivamente per gli adempimenti previsti dalla normativa vigente in materia di compro oro (D.Lgs. 92/2017) e per gli obblighi antiriciclaggio.\n\nI dati non saranno comunicati a terzi, salvo obblighi di legge.\n\nIl conferimento dei dati è obbligatorio per poter procedere all'operazione.\n\nLei ha diritto di accedere, rettificare, cancellare i propri dati contattando: [EMAIL/TELEFONO]`}
+            placeholder="Inserisci qui il testo della tua informativa privacy..."
           />
         </section>
 
