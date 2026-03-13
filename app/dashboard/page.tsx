@@ -45,8 +45,18 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
   const fotoFronte = scheda.foto.find(f => f.tipo === "documento_fronte");
   const fotoRetro = scheda.foto.find(f => f.tipo === "documento_retro");
   const firmaCliente = scheda.foto.find(f => f.tipo === "firma_cliente");
+  const firmaRicevuta = scheda.foto.find(f => f.tipo === "firma_ricevuta");
   const firmaPrivacy = scheda.foto.find(f => f.tipo === "firma_privacy");
+  const firmaPrivacy2 = scheda.foto.find(f => f.tipo === "firma_privacy2");
+  const firmaPrivacy3 = scheda.foto.find(f => f.tipo === "firma_privacy3");
   const fotoOggetti = scheda.foto.filter(f => f.tipo.startsWith("oggetto_"));
+
+  // Estrai consensi dalle note
+  const noteOp = scheda.note_operazione || "";
+  const matchConsenso = noteOp.match(/PRIVACY: consenso1=(SI|NO) consenso2=(SI|NO) consenso3=(SI|NO)/);
+  const c1 = matchConsenso ? matchConsenso[1] : null;
+  const c2 = matchConsenso ? matchConsenso[2] : null;
+  const c3 = matchConsenso ? matchConsenso[3] : null;
 
   const dataOra = scheda.data_operazione
     ? new Date(scheda.data_operazione).toLocaleDateString("it-IT")
@@ -189,7 +199,7 @@ ${firmaPrivacy ? `<div class="privacy-badge">✅ Informativa privacy accettata d
     <div class="firma-label">Firma Azienda</div>
   </div>
   <div class="firma-box">
-    ${firmaPrivacy ? `<img src="data:image/png;base64,${firmaPrivacy.data_base64}" class="firma-img" alt="Firma privacy">` : `<div class="firma-linea"></div>`}
+    ${firmaRicevuta ? `<img src="data:image/png;base64,${firmaRicevuta.data_base64}" class="firma-img" alt="Firma ricevuta">` : `<div class="firma-linea"></div>`}
     <div class="firma-label">Per Consegna Ricevuta<br>Data e Firma</div>
   </div>
 </div>
@@ -199,6 +209,64 @@ ${firmaPrivacy ? `<div class="privacy-badge">✅ Informativa privacy accettata d
 </div>
 <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ccc;font-size:10px;color:#888;text-align:center">
   SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generata il ${new Date().toLocaleDateString("it-IT")}
+</div>
+
+<!-- SECONDA PAGINA: PRIVACY -->
+<div style="page-break-before:always;padding-top:20px">
+
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:22px;font-weight:800">${negozio?.nome || "GIOIE E ORO"}</div>
+    ${negozio?.indirizzo ? `<div style="font-size:14px;color:#555">${negozio.indirizzo}, ${negozio.comune}</div>` : ""}
+    <div style="font-size:18px;font-weight:700;margin-top:12px;text-transform:uppercase;letter-spacing:0.08em">Dichiarazione di Consenso</div>
+  </div>
+
+  <div style="font-size:15px;line-height:1.8;color:#222;border:1px solid #ccc;border-radius:8px;padding:16px;margin-bottom:20px">
+    L'interessato dichiara di aver ricevuto debita informativa ai sensi dell'art. 13 del Regolamento Generale UE sulla
+    protezione dei dati personali n. 679/2016, unitamente all'esposizione dei Diritti dell'Interessato ai sensi degli artt. 15, 16,
+    17, 18 e 20 del Regolamento medesimo.<br><br>
+    Esprime il pieno e libero consenso al trattamento dei dati personali e di categorie particolari di dati personali «dati sensibili»
+    per la fornitura dei servizi richiesti ed alla comunicazione degli stessi nei limiti, per le finalità e per la durata precisati nell'informativa.<br><br>
+    Le autorizzazioni potranno essere revocate in ogni momento rivolgendo richiesta al Titolare della Protezione dei Dati,
+    mediante lettera raccomandata all'indirizzo della ${negozio?.nome || "società"} o inviando una e-mail alla casella di posta elettronica ${negozio?.email || ""}.
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+    <div style="border:1px solid #ccc;border-radius:6px;padding:10px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#888">Data</div>
+      <div style="font-size:16px;font-weight:600">${formatDate(scheda.data_operazione)}</div>
+    </div>
+    <div style="border:1px solid #ccc;border-radius:6px;padding:10px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#888">Cognome e Nome</div>
+      <div style="font-size:16px;font-weight:600">${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</div>
+    </div>
+  </div>
+
+  ${["a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla società.",
+     "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla " + (negozio?.nome || "società") + ".",
+     "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario di soggetti terzi (business partner)."]
+    .map((testo, i) => {
+      const firme = [firmaPrivacy, firmaPrivacy2, firmaPrivacy3];
+      const consensi = [c1, c2, c3];
+      const f = firme[i];
+      const c = consensi[i];
+      return `
+  <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:800;text-transform:uppercase;color:#6b7280;margin-bottom:8px">Consenso ${i+1}</div>
+    <p style="font-size:15px;line-height:1.6;color:#374151;margin-bottom:12px">${testo}</p>
+    <div style="display:flex;gap:24px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:${c==="SI"?"#059669":"#ccc"}">
+        <div style="width:18px;height:18px;border:2px solid ${c==="SI"?"#059669":"#ccc"};border-radius:3px;background:${c==="SI"?"#059669":"#fff"};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${c==="SI"?"✓":""}</div>
+        Acconsento
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:${c==="NO"?"#dc2626":"#ccc"}">
+        <div style="width:18px;height:18px;border:2px solid ${c==="NO"?"#dc2626":"#ccc"};border-radius:3px;background:${c==="NO"?"#dc2626":"#fff"};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${c==="NO"?"✓":""}</div>
+        Non Acconsento
+      </div>
+    </div>
+    ${f ? `<img src="data:${f.mime_type};base64,${f.data_base64}" style="height:60px;object-fit:contain;border:1.5px solid #059669;border-radius:8px;background:#fafafa;display:block">` : `<div style="border-bottom:1px solid #999;height:50px"></div>`}
+    <div style="font-size:11px;color:#9ca3af;margin-top:4px">Firma</div>
+  </div>`; }).join("")}
+
 </div>
 
 </body></html>`;

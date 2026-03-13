@@ -201,7 +201,7 @@ function ConsensoBox({ testo, consenso, onConsenso, firma, onFirma }: {
 function PrivacyPopup({ negozio, cliente, onConferma, onAnnulla }: {
   negozio: NegozioInfo | null;
   cliente: { nome: string; cognome: string };
-  onConferma: (firmaBase64: string) => void;
+  onConferma: (dati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) => void;
   onAnnulla: () => void;
 }) {
   const [consenso1, setConsenso1] = useState<boolean | null>(null);
@@ -286,7 +286,14 @@ function PrivacyPopup({ negozio, cliente, onConferma, onAnnulla }: {
             </button>
             <button
               style={{ background: tutteCompilate ? "#059669" : "#9ca3af", color: "#fff", border: "none", borderRadius: 9, padding: "11px 28px", cursor: tutteCompilate ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}
-              onClick={() => { if (tutteCompilate) onConferma(firma1.split(",")[1] || firma1); }}
+              onClick={() => { if (tutteCompilate) onConferma({
+                firma1: firma1.split(",")[1] || firma1,
+                firma2: firma2.split(",")[1] || firma2,
+                firma3: firma3.split(",")[1] || firma3,
+                consenso1: consenso1!,
+                consenso2: consenso2!,
+                consenso3: consenso3!,
+              }); }}
               disabled={!tutteCompilate}
             >
               ✅ Conferma e prosegui
@@ -416,8 +423,9 @@ export default function SchedaAcquisti() {
   }
 
   // Dopo conferma privacy → salva tutto
-  async function salvaScheda(firmaPrivB64: string) {
+  async function salvaScheda(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) {
     setShowPrivacy(false);
+    const firmaPrivB64 = privacyDati.firma1;
     setFirmaPrivacyBase64(firmaPrivB64);
     try {
       setSaving(true);
@@ -502,8 +510,12 @@ export default function SchedaAcquisti() {
         await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_ricevuta", nome_file: "firma_ricevuta.png", mime_type: "image/png", data_base64: firmaRicevutaDataUrl.split(",")[1] });
       }
 
-      // 7. Firma privacy
-      await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_privacy", nome_file: "firma_privacy.png", mime_type: "image/png", data_base64: firmaPrivB64 });
+      // 7. Firme privacy
+      await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_privacy", nome_file: "firma_privacy.png", mime_type: "image/png", data_base64: privacyDati.firma1 });
+      if (privacyDati.firma2) await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_privacy2", nome_file: "firma_privacy2.png", mime_type: "image/png", data_base64: privacyDati.firma2 });
+      if (privacyDati.firma3) await supabase.from("foto_scheda").insert({ operazione_id: operazioneId, tipo: "firma_privacy3", nome_file: "firma_privacy3.png", mime_type: "image/png", data_base64: privacyDati.firma3 });
+      // Salva consensi nelle note operazione
+      await supabase.from("operazioni").update({ note_operazione: (noteOperazione ? noteOperazione + " | " : "") + \`PRIVACY: consenso1=\${privacyDati.consenso1?"SI":"NO"} consenso2=\${privacyDati.consenso2?"SI":"NO"} consenso3=\${privacyDati.consenso3?"SI":"NO"}\` }).eq("id", operazioneId);
 
       setSavedOk(true);
       setStatus({ text: `✅ Scheda n° ${numeroScheda} salvata con firma e privacy!`, type: "success" });
@@ -538,7 +550,7 @@ export default function SchedaAcquisti() {
         <PrivacyPopup
           negozio={negozio}
           cliente={{ nome: customer.nome, cognome: customer.cognome }}
-          onConferma={salvaScheda}
+          onConferma={(dati) => salvaScheda(dati)}
           onAnnulla={() => setShowPrivacy(false)}
         />
       )}
