@@ -55,14 +55,24 @@ export default function Clienti() {
       .eq("cliente_id", cliente.id)
       .order("numero_scheda", { ascending: false });
 
-    // Carica foto dell'ultima operazione
+    // Cerca foto documento (fronte/retro) in tutte le operazioni, dalla più recente
     let foto: Foto[] = [];
     if (ops && ops.length > 0) {
-      const { data: fotoDB } = await supabase
-        .from("foto_scheda")
-        .select("tipo,data_base64,mime_type")
-        .eq("operazione_id", ops[0].id);
-      foto = fotoDB || [];
+      for (const op of ops) {
+        const { data: fotoDB } = await supabase
+          .from("foto_scheda")
+          .select("tipo,data_base64,mime_type")
+          .eq("operazione_id", op.id)
+          .in("tipo", ["documento_fronte", "documento_retro", "firma_cliente", "firma_privacy"]);
+        if (fotoDB && fotoDB.length > 0) {
+          // Prendi tutte le foto trovate, merge senza duplicare tipo
+          for (const f of fotoDB) {
+            if (!foto.find(x => x.tipo === f.tipo)) foto.push(f);
+          }
+        }
+        // Se abbiamo già fronte e retro, non serve continuare
+        if (foto.find(f => f.tipo === "documento_fronte") && foto.find(f => f.tipo === "documento_retro")) break;
+      }
     }
 
     setSelectedCliente({
@@ -177,37 +187,82 @@ export default function Clienti() {
                     )}
                   </div>
 
-                  {/* Foto documento */}
-                  {(fotoFronte || fotoRetro) && (
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>Documento d&apos;Identità (ultima scheda)</div>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        {fotoFronte && <img src={`data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}`} alt="Fronte" style={{ width: 160, borderRadius: 8, border: "1px solid #e5e7eb" }} />}
-                        {fotoRetro && <img src={`data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}`} alt="Retro" style={{ width: 160, borderRadius: 8, border: "1px solid #e5e7eb" }} />}
-                      </div>
+                  {/* Documento d'identità */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>
+                      📄 Documento d&apos;Identità
                     </div>
-                  )}
+                    {(fotoFronte || fotoRetro) ? (
+                      <div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                          {fotoFronte && (
+                            <div style={{ textAlign: "center" }}>
+                              <img src={`data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}`} alt="Fronte"
+                                style={{ width: 200, borderRadius: 8, border: "1.5px solid #e5e7eb", display: "block", cursor: "pointer" }}
+                                onClick={() => { const w = window.open(); w?.document.write(`<img src="data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}" style="max-width:100%">`); }} />
+                              <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>Fronte</div>
+                              <a href={`data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}`} download={`documento_fronte_${selectedCliente.cognome}.jpg`}
+                                style={{ fontSize: 11, color: "#2563eb", textDecoration: "none", fontWeight: 700 }}>⬇ Scarica</a>
+                            </div>
+                          )}
+                          {fotoRetro && (
+                            <div style={{ textAlign: "center" }}>
+                              <img src={`data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}`} alt="Retro"
+                                style={{ width: 200, borderRadius: 8, border: "1.5px solid #e5e7eb", display: "block", cursor: "pointer" }}
+                                onClick={() => { const w = window.open(); w?.document.write(`<img src="data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}" style="max-width:100%">`); }} />
+                              <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>Retro</div>
+                              <a href={`data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}`} download={`documento_retro_${selectedCliente.cognome}.jpg`}
+                                style={{ fontSize: 11, color: "#2563eb", textDecoration: "none", fontWeight: 700 }}>⬇ Scarica</a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 13, color: "#9ca3af", padding: "10px", background: "#f9fafb", borderRadius: 8 }}>
+                        Nessun documento caricato per questo cliente.
+                      </div>
+                    )}
+                  </div>
 
-                  {/* Firme */}
-                  {(firmaCliente || firmaPrivacy) && (
-                    <div style={{ marginBottom: 20 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>Firme</div>
+                  {/* Privacy e Firme */}
+                  <div style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>
+                      🔒 Privacy e Firme
+                    </div>
+                    {selectedCliente.privacy_accettata ? (
+                      <div style={{ background: "#d1fae5", border: "1px solid #059669", borderRadius: 8, padding: "10px 14px", marginBottom: 10, fontSize: 13, color: "#065f46", fontWeight: 600 }}>
+                        ✅ Privacy accettata il {formatDate(selectedCliente.privacy_data)}
+                      </div>
+                    ) : (
+                      <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 8, padding: "10px 14px", marginBottom: 10, fontSize: 13, color: "#92400e" }}>
+                        ⚠️ Privacy non ancora accettata
+                      </div>
+                    )}
+                    {(firmaCliente || firmaPrivacy) && (
                       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                         {firmaCliente && (
-                          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 8, textAlign: "center" }}>
-                            <img src={`data:image/png;base64,${firmaCliente.data_base64}`} alt="Firma" style={{ height: 50, objectFit: "contain", display: "block" }} />
+                          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 10, textAlign: "center", background: "#f9fafb" }}>
+                            <img src={`data:image/png;base64,${firmaCliente.data_base64}`} alt="Firma"
+                              style={{ height: 60, objectFit: "contain", display: "block", cursor: "pointer" }}
+                              onClick={() => { const w = window.open(); w?.document.write(`<img src="data:image/png;base64,${firmaCliente.data_base64}" style="max-width:100%">`); }} />
                             <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>Firma Cliente</div>
+                            <a href={`data:image/png;base64,${firmaCliente.data_base64}`} download={`firma_${selectedCliente.cognome}.png`}
+                              style={{ fontSize: 11, color: "#2563eb", textDecoration: "none", fontWeight: 700 }}>⬇ Scarica</a>
                           </div>
                         )}
                         {firmaPrivacy && (
-                          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 8, textAlign: "center" }}>
-                            <img src={`data:image/png;base64,${firmaPrivacy.data_base64}`} alt="Firma Privacy" style={{ height: 50, objectFit: "contain", display: "block" }} />
+                          <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 10, textAlign: "center", background: "#f9fafb" }}>
+                            <img src={`data:image/png;base64,${firmaPrivacy.data_base64}`} alt="Firma Privacy"
+                              style={{ height: 60, objectFit: "contain", display: "block", cursor: "pointer" }}
+                              onClick={() => { const w = window.open(); w?.document.write(`<img src="data:image/png;base64,${firmaPrivacy.data_base64}" style="max-width:100%">`); }} />
                             <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 4 }}>Firma Privacy</div>
+                            <a href={`data:image/png;base64,${firmaPrivacy.data_base64}`} download={`firma_privacy_${selectedCliente.cognome}.png`}
+                              style={{ fontSize: 11, color: "#2563eb", textDecoration: "none", fontWeight: 700 }}>⬇ Scarica</a>
                           </div>
                         )}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Storico schede */}
                   <div>
