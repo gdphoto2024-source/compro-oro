@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
+import NavBar from "../components/NavBar";
 
 const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
 
@@ -684,7 +685,8 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
   const statusColors: any = { idle: "#6b7280", loading: "#2563eb", success: "#059669", error: "#dc2626" };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "24px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
+      <NavBar />
       {showPrivacy && (
         <PrivacyPopup
           negozio={negozio}

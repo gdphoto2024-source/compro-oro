@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import NavBar from "../../components/NavBar";
 
 type Scheda = {
   id: number;
@@ -517,7 +518,8 @@ export default function Dashboard() {
   const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ background: bg, color, border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 13, fontFamily: "inherit" });
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "24px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
+      <NavBar />
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Header */}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import NavBar from "../../components/NavBar";
 
 type Foto = { tipo: string; data_base64: string; mime_type: string };
 type Scheda = { numero_scheda: number; data_operazione: string; totale_valore: number; mezzo_pagamento: string };
@@ -169,7 +170,8 @@ export default function Clienti() {
   const firmaPrivacy = selectedCliente?.foto.find(f => f.tipo === "firma_privacy");
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "24px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
+      <NavBar />
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Header */}
