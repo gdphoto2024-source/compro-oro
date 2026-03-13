@@ -406,6 +406,72 @@ ${sezioni.map((s, i) => `
 </body></html>`;
 }
 
+function Lightbox({ src, tipo, onClose }: { src: string; tipo: string; onClose: () => void }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ maxWidth: "95vw", maxHeight: "95vh", textAlign: "center" }}>
+        <img src={src} alt={tipo} style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 10, display: "block", margin: "0 auto" }} />
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14 }}>
+          <a href={src} download={tipo + ".jpg"} style={{ background: "#2563eb", color: "#fff", borderRadius: 8, padding: "9px 22px", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>⬇ Scarica</a>
+          <button onClick={onClose} style={{ background: "#374151", color: "#fff", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✕ Chiudi</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PopupOggetti({ scheda, onClose, onLightbox }: { scheda: Scheda; onClose: () => void; onLightbox: (src: string, tipo: string) => void }) {
+  const fotoOggetti = scheda.foto.filter(f => f.tipo.startsWith("oggetto_"));
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 700, width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📦 Oggetti — Scheda N° {scheda.numero_scheda}</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>{scheda.nome_cognome} — {new Date(scheda.data_operazione).toLocaleDateString("it-IT")}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>✕ Chiudi</button>
+        </div>
+
+        {/* Lista oggetti */}
+        <div style={{ marginBottom: 20 }}>
+          {scheda.oggetti.map((o, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#f9fafb", borderRadius: 8, marginBottom: 8, border: "1px solid #e5e7eb" }}>
+              <div>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{i+1}. {o.descrizione || "Oggetto"}</span>
+                <span style={{ marginLeft: 10, fontSize: 12, color: "#6b7280", textTransform: "uppercase" }}>{o.materiale}</span>
+                {o.peso_au > 0 && <span style={{ marginLeft: 8, fontSize: 12, color: "#9ca3af" }}>AU: {o.peso_au}g</span>}
+                {o.peso_ag > 0 && <span style={{ marginLeft: 8, fontSize: 12, color: "#9ca3af" }}>AG: {o.peso_ag}g</span>}
+              </div>
+              <span style={{ fontWeight: 700, color: "#059669", fontSize: 14 }}>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(o.valore || 0)}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Foto oggetti */}
+        {fotoOggetti.length > 0 ? (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>Foto ({fotoOggetti.length})</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              {fotoOggetti.map((f, i) => (
+                <div key={i} style={{ position: "relative", cursor: "zoom-in" }} onClick={() => onLightbox(`data:${f.mime_type};base64,${f.data_base64}`, f.tipo)}>
+                  <img src={`data:${f.mime_type};base64,${f.data_base64}`} alt={f.tipo}
+                    style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: "2px solid #e5e7eb", display: "block" }} />
+                  <div style={{ position: "absolute", bottom: 4, right: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, borderRadius: 4, padding: "2px 6px" }}>🔍 Apri</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", padding: 30, color: "#9ca3af", fontSize: 14, background: "#f9fafb", borderRadius: 10 }}>
+            Nessuna foto oggetto per questa scheda.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [schede, setSchede] = useState<Scheda[]>([]);
   const [negozio, setNegozio] = useState<Negozio | null>(null);
@@ -414,6 +480,8 @@ export default function Dashboard() {
   const [filterData, setFilterData] = useState("");
   const [emailStatus, setEmailStatus] = useState<{ [id: number]: string }>({});
   const [pdfStatus, setPdfStatus] = useState<{ [id: number]: string }>({});
+  const [popupOggetti, setPopupOggetti] = useState<Scheda | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; tipo: string } | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -556,6 +624,8 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
       <NavBar />
+      {popupOggetti && <PopupOggetti scheda={popupOggetti} onClose={() => setPopupOggetti(null)} onLightbox={(src, tipo) => setLightbox({ src, tipo })} />}
+      {lightbox && <Lightbox src={lightbox.src} tipo={lightbox.tipo} onClose={() => setLightbox(null)} />}
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Header */}
@@ -634,6 +704,7 @@ export default function Dashboard() {
                 <div style={{ display: "flex", gap: 10, marginTop: 14, paddingTop: 14, borderTop: "1px solid #f3f4f6", flexWrap: "wrap", alignItems: "center" }}>
                   <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                   <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
+                  <button style={btn("#059669")} onClick={() => setPopupOggetti(scheda)}>📦 Oggetti</button>
                   <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
                   <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>
                   <button
