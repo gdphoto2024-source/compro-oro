@@ -139,7 +139,7 @@ function TextBox({ title, text }: { title: string; text: string }) {
   );
 }
 
-function FotoUploader({ foto, onAdd, onRemove, label }: { foto: FotoAllegata[]; onAdd: (f: FotoAllegata) => void; onRemove: (i: number) => void; label: string }) {
+function FotoUploader({ foto, onAdd, onRemove, label, onOpen }: { foto: FotoAllegata[]; onAdd: (f: FotoAllegata) => void; onRemove: (i: number) => void; label: string; onOpen?: (src: string, nome: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   async function handleFile(file: File | null) {
     if (!file) return;
@@ -159,12 +159,29 @@ function FotoUploader({ foto, onAdd, onRemove, label }: { foto: FotoAllegata[]; 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           {foto.map((f, i) => (
             <div key={i} style={{ position: "relative" }}>
-              <img src={f.preview} alt={f.nome} style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1.5px solid #e5e7eb", display: "block" }} />
+              <img src={f.preview} alt={f.nome}
+                style={{ width: 100, height: 100, objectFit: "cover", borderRadius: 8, border: "1.5px solid #e5e7eb", display: "block", cursor: onOpen ? "zoom-in" : "default" }}
+                onClick={() => onOpen && onOpen(f.preview, f.nome)} />
               <button onClick={() => onRemove(i)} style={{ position: "absolute", top: -6, right: -6, background: "#dc2626", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", fontSize: 13, fontWeight: 700, lineHeight: "22px", padding: 0, textAlign: "center" }}>×</button>
+              {onOpen && <div style={{ position: "absolute", bottom: 2, left: 2, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 10, borderRadius: 4, padding: "1px 4px" }}>🔍</div>}
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function Lightbox({ src, nome, onClose }: { src: string; nome: string; onClose: () => void }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ position: "relative", maxWidth: "95vw", maxHeight: "95vh" }}>
+        <img src={src} alt={nome} style={{ maxWidth: "90vw", maxHeight: "85vh", objectFit: "contain", borderRadius: 10, display: "block" }} />
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 12 }}>
+          <a href={src} download={nome} style={{ background: "#2563eb", color: "#fff", borderRadius: 8, padding: "8px 20px", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>⬇ Scarica</a>
+          <button onClick={onClose} style={{ background: "#374151", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✕ Chiudi</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -386,6 +403,7 @@ export default function SchedaAcquisti() {
   const [clientiSuggeriti, setClientiSuggeriti] = useState<ClienteDB[]>([]);
   const [showSuggerimenti, setShowSuggerimenti] = useState(false);
   const [clienteSelezionato, setClienteSelezionato] = useState<ClienteDB | null>(null);
+  const [lightbox, setLightbox] = useState<{ src: string; nome: string } | null>(null);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
 
@@ -723,6 +741,7 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
   return (
     <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
       <NavBar />
+      {lightbox && <Lightbox src={lightbox.src} nome={lightbox.nome} onClose={() => setLightbox(null)} />}
       {showPrivacy && (
         <PrivacyPopup
           negozio={negozio}
@@ -803,6 +822,7 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
               onAdd={f => setFotoDocumento(prev => [...prev, f])}
               onRemove={i => { const extra = fotoDocumento.filter(f => !f.nome.startsWith("fronte_") && !f.nome.startsWith("retro_")); setFotoDocumento(prev => prev.filter(f => f !== extra[i])); }}
               label="Altre foto documento"
+              onOpen={(src, nome) => setLightbox({ src, nome })}
             />
             {fotoDocumento.length > 0 && <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>📎 {fotoDocumento.length} foto documento</div>}
           </div>
@@ -908,7 +928,7 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
                 <Field label="Note"><input style={inp} value={item.note} onChange={e => ui(i, "note", e.target.value)} /></Field>
               </div>
               <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
-                <FotoUploader foto={item.foto} onAdd={f => ui(i, "foto", [...item.foto, f])} onRemove={idx => ui(i, "foto", item.foto.filter((_, j) => j !== idx))} label={`Foto oggetto ${i + 1}`} />
+                <FotoUploader foto={item.foto} onAdd={f => ui(i, "foto", [...item.foto, f])} onRemove={idx => ui(i, "foto", item.foto.filter((_, j) => j !== idx))} label={`Foto oggetto ${i + 1}`} onOpen={(src, nome) => setLightbox({ src, nome })} />
               </div>
             </div>
           ))}

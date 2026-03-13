@@ -39,7 +39,7 @@ function NavBar() {
 }
 
 
-type Foto = { tipo: string; data_base64: string; mime_type: string };
+type Foto = { tipo: string; data_base64: string; mime_type: string; nome_file?: string };
 type Scheda = { numero_scheda: number; data_operazione: string; totale_valore: number; mezzo_pagamento: string };
 type Cliente = {
   id: number; nome: string; cognome: string; codice_fiscale: string;
@@ -57,6 +57,20 @@ function formatDate(d: string) {
 }
 function currency(v: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v || 0);
+}
+
+function Lightbox({ src, nome, onClose }: { src: string; nome: string; onClose: () => void }) {
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ position: "relative", maxWidth: "95vw", maxHeight: "95vh" }}>
+        <img src={src} alt={nome} style={{ maxWidth: "90vw", maxHeight: "85vh", objectFit: "contain", borderRadius: 10, display: "block" }} />
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 12 }}>
+          <a href={src} download={nome} style={{ background: "#2563eb", color: "#fff", borderRadius: 8, padding: "8px 20px", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>⬇ Scarica</a>
+          <button onClick={onClose} style={{ background: "#374151", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✕ Chiudi</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function buildPrivacyHtml(cliente: Cliente, negozioNome: string, firmaPrivacyB64?: string) {
@@ -127,6 +141,7 @@ export default function Clienti() {
   const [search, setSearch] = useState("");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [loadingDettagli, setLoadingDettagli] = useState(false);
+  const [lightbox, setLightbox] = useState<{ src: string; nome: string } | null>(null);
   const [negozioNome, setNegozioNome] = useState("");
 
   useEffect(() => {
@@ -174,9 +189,8 @@ export default function Clienti() {
       for (const op of ops) {
         const { data: fotoDB } = await supabase
           .from("foto_scheda")
-          .select("tipo,data_base64,mime_type")
-          .eq("operazione_id", op.id)
-          .in("tipo", ["documento_fronte", "documento_retro", "firma_cliente", "firma_privacy"]);
+          .select("tipo,data_base64,mime_type,nome_file")
+          .eq("operazione_id", op.id);
         if (fotoDB && fotoDB.length > 0) {
           // Prendi tutte le foto trovate, merge senza duplicare tipo
           for (const f of fotoDB) {
@@ -208,6 +222,7 @@ export default function Clienti() {
   return (
     <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
       <NavBar />
+      {lightbox && <Lightbox src={lightbox.src} nome={lightbox.nome} onClose={() => setLightbox(null)} />}
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         {/* Header */}
@@ -382,6 +397,25 @@ export default function Clienti() {
                       </div>
                     )}
                   </div>
+
+                  {/* Foto oggetti */}
+                  {selectedCliente.foto.filter(f => f.tipo.startsWith("oggetto_")).length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>
+                        📦 Foto Oggetti (ultima scheda)
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {selectedCliente.foto.filter(f => f.tipo.startsWith("oggetto_")).map((f, i) => (
+                          <div key={i} style={{ position: "relative", cursor: "zoom-in" }}
+                            onClick={() => setLightbox({ src: `data:${f.mime_type};base64,${f.data_base64}`, nome: f.nome_file || f.tipo + ".jpg" })}>
+                            <img src={`data:${f.mime_type};base64,${f.data_base64}`} alt={f.tipo}
+                              style={{ width: 90, height: 90, objectFit: "cover", borderRadius: 8, border: "1.5px solid #e5e7eb", display: "block" }} />
+                            <div style={{ position: "absolute", bottom: 2, right: 2, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 10, borderRadius: 4, padding: "1px 5px" }}>🔍</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Storico schede */}
                   <div>
