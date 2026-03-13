@@ -420,18 +420,117 @@ function Lightbox({ src, tipo, onClose }: { src: string; tipo: string; onClose: 
   );
 }
 
-function PopupOggetti({ scheda, onClose, onLightbox }: { scheda: Scheda; onClose: () => void; onLightbox: (src: string, tipo: string) => void }) {
-  const fotoOggetti = scheda.foto.filter(f => f.tipo.startsWith("oggetto_"));
+function PopupOggetti({ scheda, onClose, onLightbox, onFotoAggiunta }: {
+  scheda: Scheda; onClose: () => void;
+  onLightbox: (src: string, tipo: string) => void;
+  onFotoAggiunta: (operazioneId: number, nuovaFoto: { tipo: string; data_base64: string; mime_type: string }) => void;
+}) {
+  const [fotoLocali, setFotoLocali] = useState<{ tipo: string; data_base64: string; mime_type: string }[]>(
+    scheda.foto.filter(f => f.tipo.startsWith("oggetto_"))
+  );
+  const [salvando, setSalvando] = useState(false);
+  const [messaggioSalva, setMessaggioSalva] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function aggiungiPhoto(file: File) {
+    if (!file) return;
+    setSalvando(true);
+    setMessaggioSalva("⏳ Salvataggio...");
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res((r.result as string).split(",")[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      // Prossimo numero oggetto
+      const nextNum = fotoLocali.filter(f => f.tipo.startsWith("oggetto_")).length + 1;
+      const tipo = `oggetto_${nextNum}`;
+      const { error } = await supabase.from("foto_scheda").insert({
+        operazione_id: scheda.id, tipo, nome_file: file.name,
+        mime_type: file.type, data_base64: base64,
+      });
+      if (error) throw new Error(error.message);
+      const nuova = { tipo, data_base64: base64, mime_type: file.type };
+      setFotoLocali(prev => [...prev, nuova]);
+      onFotoAggiunta(scheda.id, nuova);
+      setMessaggioSalva("✅ Foto salvata!");
+      setTimeout(() => setMessaggioSalva(""), 2500);
+    } catch (e: any) {
+      setMessaggioSalva("❌ Errore: " + e.message);
+    } finally {
+      setSalvando(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function stampaFotoPDF() {
+    const cliente = `${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}`.trim();
+    const data = new Date(scheda.data_operazione).toLocaleDateString("it-IT");
+    const righe: string[] = [];
+    for (let i = 0; i < fotoLocali.length; i += 3) {
+      const gruppo = fotoLocali.slice(i, i + 3);
+      righe.push(`<div class="riga">${gruppo.map((f, j) => `
+        <div class="cella">
+          <img src="data:${f.mime_type};base64,${f.data_base64}" alt="Oggetto ${i+j+1}">
+          <div class="label">Oggetto ${i+j+1}</div>
+        </div>`).join("")}</div>`);
+    }
+    const html = `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">
+<title>Foto Oggetti — Scheda N° ${scheda.numero_scheda}</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+  .header { text-align: center; margin-bottom: 14px; border-bottom: 2px solid #111; padding-bottom: 10px; }
+  .header h1 { font-size: 18px; margin: 0 0 4px; }
+  .header p { font-size: 13px; color: #555; margin: 0; }
+  .riga { display: flex; gap: 10px; margin-bottom: 10px; }
+  .cella { flex: 1; text-align: center; }
+  .cella img { width: 100%; max-height: 230px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; display: block; }
+  .label { font-size: 11px; font-weight: 700; color: #374151; margin-top: 4px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+<div class="header">
+  <h1>📦 Foto Oggetti — Scheda N° ${scheda.numero_scheda}</h1>
+  <p>${cliente} — ${data} — ${fotoLocali.length} foto</p>
+</div>
+${righe.join("")}
+</body></html>`;
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(html); win.document.close(); setTimeout(() => { win.focus(); win.print(); }, 600); }
+  }
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 700, width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 760, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📦 Oggetti — Scheda N° {scheda.numero_scheda}</h2>
             <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>{scheda.cliente?.cognome} {scheda.cliente?.nome} — {new Date(scheda.data_operazione).toLocaleDateString("it-IT")}</p>
           </div>
-          <button onClick={onClose} style={{ background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>✕ Chiudi</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {fotoLocali.length > 0 && (
+              <button onClick={stampaFotoPDF} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>🖨️ Stampa Foto PDF</button>
+            )}
+            <button onClick={() => fileRef.current?.click()} disabled={salvando}
+              style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
+              📷 Aggiungi Foto
+            </button>
+            <button onClick={onClose} style={{ background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✕ Chiudi</button>
+          </div>
         </div>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) aggiungiPhoto(f); }} />
+        {messaggioSalva && (
+          <div style={{ background: messaggioSalva.startsWith("✅") ? "#d1fae5" : messaggioSalva.startsWith("⏳") ? "#eff6ff" : "#fee2e2",
+            color: messaggioSalva.startsWith("✅") ? "#065f46" : messaggioSalva.startsWith("⏳") ? "#1d4ed8" : "#dc2626",
+            border: "1px solid", borderColor: messaggioSalva.startsWith("✅") ? "#059669" : messaggioSalva.startsWith("⏳") ? "#2563eb" : "#dc2626",
+            borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontWeight: 600, fontSize: 14 }}>
+            {messaggioSalva}
+          </div>
+        )}
 
         {/* Lista oggetti */}
         <div style={{ marginBottom: 20 }}>
@@ -449,24 +548,30 @@ function PopupOggetti({ scheda, onClose, onLightbox }: { scheda: Scheda; onClose
         </div>
 
         {/* Foto oggetti */}
-        {fotoOggetti.length > 0 ? (
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>Foto ({fotoOggetti.length})</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              {fotoOggetti.map((f, i) => (
-                <div key={i} style={{ position: "relative", cursor: "zoom-in" }} onClick={() => onLightbox(`data:${f.mime_type};base64,${f.data_base64}`, f.tipo)}>
+        <div style={{ borderTop: "1.5px solid #e5e7eb", paddingTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 12, letterSpacing: "0.08em" }}>
+            Foto ({fotoLocali.length})
+          </div>
+          {fotoLocali.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {fotoLocali.map((f, i) => (
+                <div key={i} style={{ position: "relative", cursor: "zoom-in" }}
+                  onClick={() => onLightbox(`data:${f.mime_type};base64,${f.data_base64}`, f.tipo)}>
                   <img src={`data:${f.mime_type};base64,${f.data_base64}`} alt={f.tipo}
-                    style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10, border: "2px solid #e5e7eb", display: "block" }} />
-                  <div style={{ position: "absolute", bottom: 4, right: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, borderRadius: 4, padding: "2px 6px" }}>🔍 Apri</div>
+                    style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 10, border: "2px solid #e5e7eb", display: "block" }} />
+                  <div style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, borderRadius: 4, padding: "2px 6px", fontWeight: 700 }}>
+                    Oggetto {i+1}
+                  </div>
+                  <div style={{ position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, borderRadius: 4, padding: "2px 6px" }}>🔍</div>
                 </div>
               ))}
             </div>
-          </div>
-        ) : (
-          <div style={{ textAlign: "center", padding: 30, color: "#9ca3af", fontSize: 14, background: "#f9fafb", borderRadius: 10 }}>
-            Nessuna foto oggetto per questa scheda.
-          </div>
-        )}
+          ) : (
+            <div style={{ textAlign: "center", padding: 30, color: "#9ca3af", fontSize: 14, background: "#f9fafb", borderRadius: 10, border: "1.5px dashed #e5e7eb" }}>
+              Nessuna foto. Premi 📷 Aggiungi Foto per iniziare.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -624,7 +729,15 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
       <NavBar />
-      {popupOggetti && <PopupOggetti scheda={popupOggetti} onClose={() => setPopupOggetti(null)} onLightbox={(src, tipo) => setLightbox({ src, tipo })} />}
+      {popupOggetti && <PopupOggetti
+        scheda={popupOggetti}
+        onClose={() => setPopupOggetti(null)}
+        onLightbox={(src, tipo) => setLightbox({ src, tipo })}
+        onFotoAggiunta={(opId, foto) => {
+          setSchede(prev => prev.map(s => s.id === opId ? { ...s, foto: [...s.foto, foto] } : s));
+          setPopupOggetti(prev => prev ? { ...prev, foto: [...prev.foto, foto] } : prev);
+        }}
+      />}
       {lightbox && <Lightbox src={lightbox.src} tipo={lightbox.tipo} onClose={() => setLightbox(null)} />}
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
