@@ -271,6 +271,104 @@ ${firmaPrivacy ? `<div class="privacy-badge">✅ Informativa privacy accettata d
 
 </body></html>`;
 }
+function buildPrivacyHtml(scheda: Scheda, negozio: Negozio | null): string {
+  const firmaPrivacy = scheda.foto.find(f => f.tipo === "firma_privacy");
+  const firmaPrivacy2 = scheda.foto.find(f => f.tipo === "firma_privacy2");
+  const firmaPrivacy3 = scheda.foto.find(f => f.tipo === "firma_privacy3");
+
+  const noteOp = scheda.note_operazione || "";
+  const matchConsenso = noteOp.match(/PRIVACY: consenso1=(SI|NO) consenso2=(SI|NO) consenso3=(SI|NO)/);
+  const c1 = matchConsenso ? matchConsenso[1] : null;
+  const c2 = matchConsenso ? matchConsenso[2] : null;
+  const c3 = matchConsenso ? matchConsenso[3] : null;
+
+  const sezioni = [
+    { testo: "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla società.", firma: firmaPrivacy, c: c1 },
+    { testo: `a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla ${negozio?.nome || "società"}.`, firma: firmaPrivacy2, c: c2 },
+    { testo: "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario di soggetti terzi (business partner).", firma: firmaPrivacy3, c: c3 },
+  ];
+
+  return `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Privacy — Scheda N° ${scheda.numero_scheda}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 15px; color: #000; background: #fff; padding: 30px 40px; }
+  .header { text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #000; }
+  .titolo { font-size: 22px; font-weight: 800; }
+  .sottotitolo { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 8px; }
+  .testo-principale { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 14px; line-height: 1.8; color: #333; }
+  .dati-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .dato { border: 1px solid #ccc; border-radius: 6px; padding: 10px 14px; }
+  .dato label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #888; display: block; margin-bottom: 4px; }
+  .dato span { font-size: 16px; font-weight: 600; }
+  .sezione { border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .sezione-num { font-size: 12px; font-weight: 800; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; }
+  .sezione-testo { font-size: 14px; line-height: 1.6; color: #374151; margin-bottom: 12px; }
+  .checkbox-row { display: flex; gap: 24px; margin-bottom: 12px; }
+  .checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .cb { width: 18px; height: 18px; border: 2px solid #ccc; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .cb-si { border-color: #059669; background: #059669; color: #fff; }
+  .cb-no { border-color: #dc2626; background: #dc2626; color: #fff; }
+  .firma-img { height: 65px; object-fit: contain; border: 1.5px solid #059669; border-radius: 8px; background: #fafafa; display: block; }
+  .firma-linea { border-bottom: 1px solid #999; height: 50px; margin-bottom: 4px; }
+  .firma-label { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid #ccc; font-size: 11px; color: #888; text-align: center; }
+  @media print { body { padding: 15px 25px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="titolo">${negozio?.nome || "GIOIE E ORO"}</div>
+  ${negozio?.indirizzo ? `<div style="font-size:13px;color:#555;margin-top:4px">${negozio.indirizzo}, ${negozio.comune}</div>` : ""}
+  <div class="sottotitolo">Dichiarazione di Consenso — Privacy</div>
+  <div style="font-size:13px;color:#555;margin-top:4px">Scheda N° ${scheda.numero_scheda} — ${formatDate(scheda.data_operazione)}</div>
+</div>
+
+<div class="testo-principale">
+  L'interessato dichiara di aver ricevuto debita informativa ai sensi dell'art. 13 del Regolamento Generale UE sulla
+  protezione dei dati personali n. 679/2016, unitamente all'esposizione dei Diritti dell'Interessato ai sensi degli artt. 15, 16,
+  17, 18 e 20 del Regolamento medesimo.<br><br>
+  Esprime il pieno e libero consenso al trattamento dei dati personali e di categorie particolari di dati personali «dati sensibili»
+  per la fornitura dei servizi richiesti ed alla comunicazione degli stessi nei limiti, per le finalità e per la durata precisati nell'informativa.<br><br>
+  Le autorizzazioni potranno essere revocate in ogni momento rivolgendo richiesta al Titolare della Protezione dei Dati,
+  mediante lettera raccomandata all'indirizzo della ${negozio?.nome || "società"} o inviando una e-mail a ${negozio?.email || ""}.
+  In merito sono comunque fatti salvi i trattamenti imposti in osservanza delle vigenti leggi.
+</div>
+
+<div class="dati-row">
+  <div class="dato"><label>Data</label><span>${formatDate(scheda.data_operazione)}</span></div>
+  <div class="dato"><label>Cognome e Nome</label><span>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</span></div>
+</div>
+
+${sezioni.map((s, i) => `
+<div class="sezione">
+  <div class="sezione-num">Consenso ${i+1}</div>
+  <p class="sezione-testo">${s.testo}</p>
+  <div class="checkbox-row">
+    <div class="checkbox-item">
+      <div class="cb ${s.c === "SI" ? "cb-si" : ""}">${s.c === "SI" ? "✓" : ""}</div>
+      <span style="color:${s.c === "SI" ? "#059669" : "#ccc"}">Acconsento</span>
+    </div>
+    <div class="checkbox-item">
+      <div class="cb ${s.c === "NO" ? "cb-no" : ""}">${s.c === "NO" ? "✓" : ""}</div>
+      <span style="color:${s.c === "NO" ? "#dc2626" : "#ccc"}">Non Acconsento</span>
+    </div>
+  </div>
+  ${s.firma ? `<img src="data:${s.firma.mime_type};base64,${s.firma.data_base64}" class="firma-img" alt="Firma">` : `<div class="firma-linea"></div>`}
+  <div class="firma-label">Firma</div>
+</div>`).join("")}
+
+<div class="footer">
+  Codice documento: CONSENSO — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generato il ${new Date().toLocaleDateString("it-IT")}
+</div>
+
+</body></html>`;
+}
+
 export default function Dashboard() {
   const [schede, setSchede] = useState<Scheda[]>([]);
   const [negozio, setNegozio] = useState<Negozio | null>(null);
@@ -344,6 +442,23 @@ export default function Dashboard() {
 
   function stampaPDF(scheda: Scheda) {
     const html = buildPDFHtml(scheda, negozio);
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
+  }
+
+  function apriPrivacy(scheda: Scheda) {
+    const html = buildPrivacyHtml(scheda, negozio);
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+  }
+
+  function stampaPrivacy(scheda: Scheda) {
+    const html = buildPrivacyHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
@@ -481,6 +596,8 @@ export default function Dashboard() {
                 <div style={{ display: "flex", gap: 10, marginTop: 14, paddingTop: 14, borderTop: "1px solid #f3f4f6", flexWrap: "wrap", alignItems: "center" }}>
                   <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                   <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
+                  <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
+                  <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>
                   <button
                     style={btn(scheda.cliente?.email ? "#059669" : "#9ca3af")}
                     onClick={() => inviaEmail(scheda)}
