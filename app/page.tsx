@@ -571,6 +571,106 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
   }
 
   // Dopo conferma privacy → salva tutto
+  function stampaPDFDopoSalvataggio(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }, numScheda: number) {
+    const dataOra = new Date(dataOperazione).toLocaleDateString("it-IT");
+    const pesoAuTot = items.reduce((a, i) => a + Number(i.pesoAu || 0), 0);
+    const pesoAgTot = items.reduce((a, i) => a + Number(i.pesoAg || 0), 0);
+    const oggettiDesc = items.filter(i => i.descrizione).map((o, i) =>
+      `${i+1}. ${o.descrizione}${o.materiale === "oro" ? " (AU)" : " (AG)"}  –  ${currency(o.valore)}`
+    ).join("<br>");
+    const c1 = privacyDati.consenso1 ? "SI" : "NO";
+    const c2 = privacyDati.consenso2 ? "SI" : "NO";
+    const c3 = privacyDati.consenso3 ? "SI" : "NO";
+
+    const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
+    const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
+    const firmaClienteB64 = firmaDataUrl ? firmaDataUrl.split(",")[1] || firmaDataUrl : "";
+    const firmaRicevutaB64 = firmaRicevutaDataUrl ? firmaRicevutaDataUrl.split(",")[1] || firmaRicevutaDataUrl : "";
+
+    const html = `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Scheda N° ${numScheda}</title>
+<style>
+  @page { size: A4; margin: 10mm 12mm; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; padding: 0; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; border-bottom: 2px solid #111; padding-bottom: 8px; }
+  .logo-img { max-height: 60px; max-width: 120px; object-fit: contain; }
+  .negozio-info { font-size: 11px; line-height: 1.4; }
+  .titolo { font-size: 15px; font-weight: 800; text-align: center; margin: 8px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
+  .scheda-num { font-size: 20px; font-weight: 900; text-align: right; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  td, th { border: 1px solid #ccc; padding: 4px 7px; font-size: 12px; }
+  th { background: #f3f4f6; font-weight: 700; text-align: left; width: 160px; }
+  .section-title { font-size: 12px; font-weight: 800; text-transform: uppercase; color: #374151; margin: 10px 0 4px; border-bottom: 1px solid #e5e7eb; padding-bottom: 3px; }
+  .foto-row { display: flex; gap: 10px; margin: 6px 0; }
+  .foto-doc { max-height: 100px; max-width: 160px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; }
+  .firma-img { max-height: 60px; max-width: 200px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; }
+  .consenso { font-size: 11px; margin: 2px 0; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+<div class="header">
+  <div>
+    ${negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" class="logo-img" alt="Logo">` : `<span style="font-size:18px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`}
+    <div class="negozio-info" style="margin-top:4px">
+      ${negozio?.indirizzo || ""} — ${negozio?.comune || ""} (${negozio?.provincia || ""}) ${negozio?.cap || ""}<br>
+      P.IVA: ${negozio?.piva || ""} | Tel: ${negozio?.telefono || ""} | ${negozio?.email || ""}
+    </div>
+  </div>
+  <div>
+    <div class="scheda-num">N° ${numScheda}</div>
+    <div style="font-size:12px;text-align:right">${dataOra}</div>
+  </div>
+</div>
+
+<div class="titolo">Scheda Acquisto Beni Usati</div>
+
+<div class="section-title">Dati Cliente</div>
+<table>
+  <tr><th>Cognome e Nome</th><td>${customer.cognome} ${customer.nome}</td><th>Cod. Fiscale</th><td>${customer.codiceFiscale}</td></tr>
+  <tr><th>Nato/a a</th><td>${customer.luogoNascita}</td><th>Data nascita</th><td>${customer.dataNascita ? new Date(customer.dataNascita).toLocaleDateString("it-IT") : ""}</td></tr>
+  <tr><th>Indirizzo</th><td colspan="3">${customer.indirizzo}, ${customer.cap} ${customer.comune} (${customer.provincia})</td></tr>
+  <tr><th>Telefono</th><td>${customer.telefono}</td><th>Email</th><td>${customer.email}</td></tr>
+</table>
+
+<div class="section-title">Documento di Identità</div>
+<table>
+  <tr><th>Tipo</th><td>${customer.tipoDocumento}</td><th>Numero</th><td>${customer.numeroDocumento}</td></tr>
+  <tr><th>Rilasciato da</th><td>${customer.enteRilascio}</td><th>Rilascio / Scadenza</th><td>${customer.dataRilascio ? new Date(customer.dataRilascio).toLocaleDateString("it-IT") : ""} / ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : ""}</td></tr>
+</table>
+${(fotoFronteB64 || fotoRetroB64) ? `<div class="foto-row">${fotoFronteB64 ? `<img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-doc" alt="Fronte">` : ""}${fotoRetroB64 ? `<img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-doc" alt="Retro">` : ""}</div>` : ""}
+
+<div class="section-title">Oggetti Ceduti</div>
+<table>
+  <tr><th>Descrizione</th><td>${oggettiDesc || "—"}</td></tr>
+  <tr><th>Peso AU totale</th><td>${pesoAuTot > 0 ? pesoAuTot + " g" : "—"}</td><th>Peso AG totale</th><td style="border:1px solid #ccc;padding:4px 7px">${pesoAgTot > 0 ? pesoAgTot + " g" : "—"}</td></tr>
+  <tr><th>Totale pagato</th><td colspan="3" style="font-size:14px;font-weight:800">${currency(totale)}</td></tr>
+  <tr><th>Mezzo pagamento</th><td>${mezzoPagamento}${croTrn ? " — CRO/TRN: " + croTrn : ""}</td><th>Note</th><td>${noteOperazione || "—"}</td></tr>
+</table>
+
+<div class="section-title">Firma Cliente</div>
+${firmaClienteB64 ? `<img src="data:image/png;base64,${firmaClienteB64}" class="firma-img" alt="Firma">` : "<p style='font-style:italic;color:#9ca3af'>Non acquisita</p>"}
+
+<div class="section-title">Privacy — Consensi</div>
+<div class="consenso">1. Trattamento dati: <strong>${c1}</strong></div>
+<div class="consenso">2. Comunicazioni commerciali proprie: <strong>${c2}</strong></div>
+<div class="consenso">3. Comunicazioni soggetti terzi: <strong>${c3}</strong></div>
+<div style="margin-top:4px;display:flex;gap:16px">
+  ${privacyDati.firma1 ? `<div><div style="font-size:10px;color:#6b7280">Firma 1</div><img src="data:image/png;base64,${privacyDati.firma1}" class="firma-img" alt="Firma privacy"></div>` : ""}
+</div>
+
+${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img src="data:image/png;base64,${negozio.firma_base64}" class="firma-img" alt="Firma titolare">` : ""}
+
+<p style="font-size:10px;color:#9ca3af;margin-top:14px;text-align:center">
+  SCHEDA ACQUISTO — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generata il ${new Date().toLocaleDateString("it-IT")}
+</p>
+</body></html>`;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => { win.focus(); win.print(); }, 800);
+    }
+  }
+
   async function salvaScheda(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) {
     setShowPrivacy(false);
     const firmaPrivB64 = privacyDati.firma1;
@@ -667,8 +767,10 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
       await supabase.from("operazioni").update({ note_operazione: (noteOperazione ? noteOperazione + " | " : "") + privacyNote }).eq("id", operazioneId);
 
       setSavedOk(true);
-      setStatus({ text: `✅ Scheda n° ${numeroScheda} salvata con firma e privacy!`, type: "success" });
+      setStatus({ text: `✅ Scheda n° ${numeroScheda} salvata! Apertura stampa...`, type: "success" });
+      const numAttuale = numeroScheda || 1;
       setNumeroScheda(prev => (prev || 0) + 1);
+      setTimeout(() => stampaPDFDopoSalvataggio(privacyDati, numAttuale), 300);
     } catch (e: any) {
       console.error(e);
       setStatus({ text: `❌ Errore: ${e.message}`, type: "error" });
