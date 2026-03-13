@@ -66,34 +66,34 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
 <title>Scheda N° ${scheda.numero_scheda}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 28px; color: #000; background: #fff; padding: 28px 36px; }
+  body { font-family: Arial, sans-serif; font-size: 18px; color: #000; background: #fff; padding: 28px 36px; }
   .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
-  .top-bar-left { font-size: 20px; }
-  .top-bar-scheda { font-size: 28px; font-weight: 800; }
+  .top-bar-left { font-size: 15px; }
+  .top-bar-scheda { font-size: 20px; font-weight: 800; }
   .logo-img { max-height: 55px; max-width: 150px; object-fit: contain; }
   .riga { display: flex; gap: 0; border-bottom: 1px solid #ccc; padding: 6px 0; align-items: baseline; }
-  .riga label { font-size: 16px; font-weight: 700; text-transform: uppercase; color: #555; min-width: 160px; }
-  .riga span { font-size: 20px; font-weight: 500; flex: 1; border-bottom: 1px dotted #aaa; min-height: 18px; padding-left: 6px; }
-  .section-title { font-size: 18px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #000; background: #f0f0f0; padding: 6px 10px; margin: 14px 0 8px; border-left: 4px solid #000; }
+  .riga label { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #555; min-width: 160px; }
+  .riga span { font-size: 15px; font-weight: 500; flex: 1; border-bottom: 1px dotted #aaa; min-height: 18px; padding-left: 6px; }
+  .section-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #000; background: #f0f0f0; padding: 6px 10px; margin: 14px 0 8px; border-left: 4px solid #000; }
   .vende-a-box { border: 2px solid #000; border-radius: 6px; padding: 12px 16px; margin: 10px 0 14px; background: #fafafa; }
-  .vende-a-title { font-size: 22px; font-weight: 800; text-transform: uppercase; text-align: center; margin-bottom: 8px; letter-spacing: 0.1em; }
-  .vende-a-nome { font-size: 24px; font-weight: 800; text-align: center; }
-  .vende-a-info { font-size: 18px; text-align: center; color: #333; margin-top: 4px; }
-  .oggetti-box { border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 80px; margin-bottom: 10px; font-size: 20px; line-height: 1.8; }
+  .vende-a-title { font-size: 15px; font-weight: 800; text-transform: uppercase; text-align: center; margin-bottom: 8px; letter-spacing: 0.1em; }
+  .vende-a-nome { font-size: 17px; font-weight: 800; text-align: center; }
+  .vende-a-info { font-size: 13px; text-align: center; color: #333; margin-top: 4px; }
+  .oggetti-box { border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 80px; margin-bottom: 10px; font-size: 15px; line-height: 1.8; }
   .riepilogo-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
   .riepilogo-field { border: 1px solid #ccc; border-radius: 4px; padding: 6px 10px; }
-  .riepilogo-field label { font-size: 16px; font-weight: 700; text-transform: uppercase; color: #555; display: block; }
-  .riepilogo-field span { font-size: 22px; font-weight: 800; }
-  .dichiarazione { border: 1.5px solid #000; border-radius: 6px; padding: 14px 16px; margin: 14px 0; font-size: 20px; line-height: 1.8; background: #fffef0; }
+  .riepilogo-field label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #555; display: block; }
+  .riepilogo-field span { font-size: 16px; font-weight: 800; }
+  .dichiarazione { border: 1.5px solid #000; border-radius: 6px; padding: 14px 16px; margin: 14px 0; font-size: 15px; line-height: 1.8; background: #fffef0; }
   .foto-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
   .foto-doc { width: 160px; border-radius: 6px; border: 1px solid #ccc; }
   .foto-ogg { width: 90px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #ccc; }
   .firme-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px; }
   .firma-box { border: 1.5px solid #ccc; border-radius: 6px; padding: 10px; text-align: center; }
   .firma-img { height: 65px; object-fit: contain; display: block; margin: 0 auto; }
-  .firma-label { font-size: 16px; color: #555; margin-top: 6px; text-align: center; font-weight: 700; text-transform: uppercase; }
+  .firma-label { font-size: 11px; color: #555; margin-top: 6px; text-align: center; font-weight: 700; text-transform: uppercase; }
   .firma-linea { border-bottom: 1px solid #999; min-height: 50px; margin-bottom: 4px; }
-  .privacy-badge { background: #d1fae5; border: 1px solid #059669; border-radius: 6px; padding: 6px 12px; font-size: 18px; color: #065f46; margin-bottom: 10px; }
+  .privacy-badge { background: #d1fae5; border: 1px solid #059669; border-radius: 6px; padding: 6px 12px; font-size: 13px; color: #065f46; margin-bottom: 10px; }
   @media print { body { padding: 10px 20px; } .no-print { display: none !important; } }
 </style>
 </head>
@@ -105,11 +105,11 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
     ${negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" class="logo-img" alt="Logo">` : `<span style="font-size:18px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`}
   </div>
   <div style="text-align:center">
-    <div style="font-size:20px">${negozio?.comune || "TORINO"} &nbsp;&nbsp; <strong>${dataOra}</strong></div>
-    <div style="font-size:16px;color:#555">Ora: ${new Date().toLocaleTimeString("it-IT", {hour:"2-digit",minute:"2-digit"})}</div>
+    <div style="font-size:15px">${negozio?.comune || "TORINO"} &nbsp;&nbsp; <strong>${dataOra}</strong></div>
+    <div style="font-size:13px;color:#555">Ora: ${new Date().toLocaleTimeString("it-IT", {hour:"2-digit",minute:"2-digit"})}</div>
   </div>
   <div style="text-align:right">
-    <div style="font-size:16px;text-transform:uppercase;letter-spacing:0.05em;color:#555">Scheda Acquisto</div>
+    <div style="font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:#555">Scheda Acquisto</div>
     <div class="top-bar-scheda">N° ${scheda.numero_scheda}</div>
   </div>
 </div>
@@ -124,7 +124,7 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
 
 ${fotoFronte || fotoRetro ? `
 <div style="margin:10px 0">
-  <div style="font-size:16px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:6px">Foto documento</div>
+  <div style="font-size:13px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:6px">Foto documento</div>
   <div class="foto-row">
     ${fotoFronte ? `<img src="data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}" class="foto-doc" alt="Fronte">` : ""}
     ${fotoRetro ? `<img src="data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}" class="foto-doc" alt="Retro">` : ""}
@@ -149,7 +149,7 @@ ${fotoFronte || fotoRetro ? `
 
 ${fotoOggetti.length > 0 ? `
 <div style="margin:8px 0">
-  <div style="font-size:16px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:6px">Foto oggetti</div>
+  <div style="font-size:13px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:6px">Foto oggetti</div>
   <div class="foto-row">${fotoOggetti.map(f => `<img src="data:${f.mime_type};base64,${f.data_base64}" class="foto-ogg" alt="Oggetto">`).join("")}</div>
 </div>` : ""}
 
