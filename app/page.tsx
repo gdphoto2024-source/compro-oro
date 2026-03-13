@@ -165,66 +165,131 @@ function SignaturePad({ onSave, onClear, hasFirma }: { onSave: (dataUrl: string)
 }
 
 // ---- POPUP PRIVACY ----
-function PrivacyPopup({ testoPrivacy, negozio, onConferma, onAnnulla }: {
-  testoPrivacy: string;
+function ConsensoBox({ testo, consenso, onConsenso, firma, onFirma }: {
+  testo: string; consenso: boolean | null; onConsenso: (v: boolean) => void;
+  firma: string | null; onFirma: (v: string) => void;
+}) {
+  return (
+    <div style={{ border: "1.5px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 18 }}>
+      <p style={{ fontSize: 13, lineHeight: 1.6, color: "#374151", marginBottom: 14 }}>{testo}</p>
+      <div style={{ display: "flex", gap: 16, marginBottom: 14 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, fontWeight: 700, color: consenso === true ? "#059669" : "#374151" }}>
+          <input type="checkbox" checked={consenso === true} onChange={() => onConsenso(true)}
+            style={{ width: 20, height: 20, accentColor: "#059669", cursor: "pointer" }} />
+          ✅ Acconsento
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, fontWeight: 700, color: consenso === false ? "#dc2626" : "#374151" }}>
+          <input type="checkbox" checked={consenso === false} onChange={() => onConsenso(false)}
+            style={{ width: 20, height: 20, accentColor: "#dc2626", cursor: "pointer" }} />
+          ❌ Non Acconsento
+        </label>
+      </div>
+      {consenso !== null && (
+        firma ? (
+          <div>
+            <img src={firma} alt="Firma" style={{ height: 70, objectFit: "contain", border: "1.5px solid #059669", borderRadius: 8, background: "#fafafa", display: "block" }} />
+            <button type="button" style={{ marginTop: 8, background: "#f3f4f6", color: "#374151", border: "1px solid #e5e7eb", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 12 }} onClick={() => onFirma("")}>🗑 Rifai</button>
+          </div>
+        ) : (
+          <SignaturePad hasFirma={false} onSave={onFirma} onClear={() => onFirma("")} />
+        )
+      )}
+    </div>
+  );
+}
+
+function PrivacyPopup({ negozio, cliente, onConferma, onAnnulla }: {
   negozio: NegozioInfo | null;
+  cliente: { nome: string; cognome: string };
   onConferma: (firmaBase64: string) => void;
   onAnnulla: () => void;
 }) {
-  const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+  const [consenso1, setConsenso1] = useState<boolean | null>(null);
+  const [consenso2, setConsenso2] = useState<boolean | null>(null);
+  const [consenso3, setConsenso3] = useState<boolean | null>(null);
+  const [firma1, setFirma1] = useState("");
+  const [firma2, setFirma2] = useState("");
+  const [firma3, setFirma3] = useState("");
+
+  const oggi = new Date().toLocaleDateString("it-IT");
+  const nomeCliente = `${cliente.cognome} ${cliente.nome}`.trim();
+  const tutteCompilate = consenso1 !== null && firma1 && consenso2 !== null && firma2 && consenso3 !== null && firma3;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: "#fff", borderRadius: 16, maxWidth: 700, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+      <div style={{ background: "#fff", borderRadius: 16, maxWidth: 750, width: "100%", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
 
-        {/* Header popup */}
-        <div style={{ background: "#111827", color: "#fff", padding: "20px 24px", borderRadius: "16px 16px 0 0" }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>📋 Informativa Privacy — Consenso del Cliente</h2>
+        <div style={{ background: "#111827", color: "#fff", padding: "20px 24px", borderRadius: "16px 16px 0 0", position: "sticky", top: 0, zIndex: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>📋 Dichiarazione di Consenso — Privacy</h2>
           {negozio?.nome && <p style={{ margin: "4px 0 0", fontSize: 13, color: "#9ca3af" }}>{negozio.nome} — {negozio.indirizzo}, {negozio.comune}</p>}
         </div>
 
         <div style={{ padding: 24 }}>
-          {/* Testo privacy */}
-          <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: 18, marginBottom: 24, maxHeight: 280, overflowY: "auto" }}>
-            <pre style={{ whiteSpace: "pre-wrap", fontFamily: "Arial, sans-serif", fontSize: 13, lineHeight: 1.7, color: "#374151", margin: 0 }}>
-              {testoPrivacy || "Nessun testo privacy configurato. Vai in Impostazioni per aggiungerlo."}
-            </pre>
+
+          {/* Intestazione documento */}
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 20, fontWeight: 800 }}>{negozio?.nome || "GIOIE E ORO"}</div>
+            {negozio?.indirizzo && <div style={{ fontSize: 13, color: "#555" }}>{negozio.indirizzo}, {negozio.comune}</div>}
+            <div style={{ fontSize: 16, fontWeight: 700, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>Dichiarazione di Consenso</div>
           </div>
 
-          {/* Firma cliente per privacy */}
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: "#111827" }}>
-              ✍️ Il cliente firma qui sotto per accettare l'informativa:
-            </p>
-            <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>
-              Data: {new Date().toLocaleDateString("it-IT")}
-            </p>
-
-            {firmaDataUrl ? (
-              <div>
-                <img src={firmaDataUrl} alt="Firma privacy" style={{ maxWidth: "100%", height: 100, objectFit: "contain", border: "2px solid #059669", borderRadius: 10, background: "#fafafa", display: "block" }} />
-                <button type="button" style={{ marginTop: 10, background: "#f3f4f6", color: "#374151", border: "1.5px solid #e5e7eb", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 600, fontSize: 13 }} onClick={() => setFirmaDataUrl(null)}>🗑 Rifai la firma</button>
-              </div>
-            ) : (
-              <SignaturePad
-                hasFirma={false}
-                onSave={(dataUrl) => setFirmaDataUrl(dataUrl)}
-                onClear={() => setFirmaDataUrl(null)}
-              />
-            )}
+          {/* Testo principale */}
+          <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 13, lineHeight: 1.7, color: "#374151" }}>
+            L&apos;interessato dichiara di aver ricevuto debita informativa ai sensi dell&apos;art. 13 del Regolamento Generale UE sulla protezione dei dati personali n. 679/2016, unitamente all&apos;esposizione dei Diritti dell&apos;Interessato ai sensi degli artt. 15, 16, 17, 18 e 20 del Regolamento medesimo.<br /><br />
+            Esprime il pieno e libero consenso al trattamento dei dati personali e di categorie particolari di dati personali «dati sensibili» per la fornitura dei servizi richiesti ed alla comunicazione degli stessi nei limiti, per le finalità e per la durata precisati nell&apos;informativa.<br /><br />
+            Le autorizzazioni potranno essere revocate in ogni momento rivolgendo richiesta al Titolare mediante lettera raccomandata o e-mail.
           </div>
 
-          {/* Bottoni */}
+          {/* Dati cliente auto-compilati */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#9ca3af" }}>Data</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{oggi}</div>
+            </div>
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "8px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#9ca3af" }}>Cognome e Nome</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{nomeCliente || "—"}</div>
+            </div>
+          </div>
+
+          {/* Sezione 1 */}
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 6 }}>Consenso 1 — Trattamento dati per servizi richiesti</div>
+          <ConsensoBox
+            testo="a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla società."
+            consenso={consenso1} onConsenso={setConsenso1}
+            firma={firma1} onFirma={setFirma1}
+          />
+
+          {/* Sezione 2 */}
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 6 }}>Consenso 2 — Comunicazioni commerciali</div>
+          <ConsensoBox
+            testo="a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla GIOIE E ORO di De Pandis Davide."
+            consenso={consenso2} onConsenso={setConsenso2}
+            firma={firma2} onFirma={setFirma2}
+          />
+
+          {/* Sezione 3 */}
+          <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 6 }}>Consenso 3 — Comunicazioni soggetti terzi</div>
+          <ConsensoBox
+            testo="a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario di soggetti terzi (business partner)."
+            consenso={consenso3} onConsenso={setConsenso3}
+            firma={firma3} onFirma={setFirma3}
+          />
+
+          {!tutteCompilate && (
+            <p style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>⚠️ Seleziona Acconsento o Non Acconsento e firma per tutte e 3 le sezioni.</p>
+          )}
+
           <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
             <button style={{ background: "#f3f4f6", color: "#374151", border: "1.5px solid #e5e7eb", borderRadius: 9, padding: "11px 22px", cursor: "pointer", fontWeight: 700, fontSize: 14 }} onClick={onAnnulla}>
               Annulla
             </button>
             <button
-              style={{ background: firmaDataUrl ? "#059669" : "#9ca3af", color: "#fff", border: "none", borderRadius: 9, padding: "11px 28px", cursor: firmaDataUrl ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}
-              onClick={() => firmaDataUrl && onConferma(firmaDataUrl.split(",")[1])}
-              disabled={!firmaDataUrl}
+              style={{ background: tutteCompilate ? "#059669" : "#9ca3af", color: "#fff", border: "none", borderRadius: 9, padding: "11px 28px", cursor: tutteCompilate ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}
+              onClick={() => { if (tutteCompilate) onConferma(firma1.split(",")[1] || firma1); }}
+              disabled={!tutteCompilate}
             >
-              ✅ Accetto e proseguo
+              ✅ Conferma e prosegui
             </button>
           </div>
         </div>
@@ -471,8 +536,8 @@ export default function SchedaAcquisti() {
     <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "24px 16px" }}>
       {showPrivacy && (
         <PrivacyPopup
-          testoPrivacy={negozio?.testo_privacy || ""}
           negozio={negozio}
+          cliente={{ nome: customer.nome, cognome: customer.cognome }}
           onConferma={salvaScheda}
           onAnnulla={() => setShowPrivacy(false)}
         />
