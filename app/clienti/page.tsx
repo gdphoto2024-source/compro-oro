@@ -22,12 +22,88 @@ function currency(v: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v || 0);
 }
 
+function buildPrivacyHtml(cliente: Cliente, negozioNome: string, firmaPrivacyB64?: string) {
+  const data = cliente.privacy_data ? new Date(cliente.privacy_data).toLocaleDateString("it-IT") : new Date().toLocaleDateString("it-IT");
+  const nomeCompleto = `${cliente.cognome} ${cliente.nome}`;
+  const checkSI = (v: boolean) => v ? "☑ SI" : "☐ SI";
+  const checkNO = (v: boolean) => !v ? "☑ NO" : "☐ NO";
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 30px 40px; }
+    h1 { font-size: 16px; text-align: center; text-transform: uppercase; margin-bottom: 4px; }
+    h2 { font-size: 13px; text-align: center; color: #555; margin-bottom: 20px; }
+    .section { border: 1px solid #ccc; border-radius: 6px; padding: 14px; margin-bottom: 14px; }
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+    .consenso { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .check { font-size: 14px; font-weight: 700; }
+    .firma-box { border: 1px solid #ccc; border-radius: 6px; padding: 10px; margin-top: 8px; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+    .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #9ca3af; }
+  </style></head><body>
+  <h1>${negozioNome || "Compro Oro"}</h1>
+  <h2>Informativa Privacy — GDPR Reg. UE 2016/679</h2>
+  <p style="margin-bottom:16px">Il/La sottoscritto/a <strong>${nomeCompleto}</strong>
+  ${cliente.codice_fiscale ? `(CF: ${cliente.codice_fiscale})` : ""}
+  dichiara di aver ricevuto l'informativa sul trattamento dei dati personali ai sensi dell'art. 13 del GDPR.</p>
+
+  <div class="section">
+    <div class="section-title">1 — Trattamento dati per finalità contrattuali</div>
+    <p>Il trattamento dei dati personali è necessario per l'esecuzione del contratto di compravendita e per adempiere agli obblighi di legge (D.Lgs. 231/2007 antiriciclaggio, normativa antiusura).</p>
+    <p style="font-size:11px;color:#555">Base giuridica: art. 6 c.1 lett. b) e c) GDPR — il consenso non è richiesto.</p>
+    <div class="consenso">
+      <span>Presa visione:</span>
+      <span class="check" style="color:#059669">☑ CONFERMO</span>
+    </div>
+    ${firmaPrivacyB64 ? `<div class="firma-box"><img src="data:image/png;base64,${firmaPrivacyB64}" style="height:50px;object-fit:contain"></div>` : `<div class="firma-box" style="color:#9ca3af;font-size:11px">Firma</div>`}
+  </div>
+
+  <div class="section">
+    <div class="section-title">2 — Trattamento dati per finalità di marketing (facoltativo)</div>
+    <p>Invio di comunicazioni commerciali, promozioni e offerte tramite email, SMS o altri canali digitali.</p>
+    <div class="consenso">
+      <span>Consenso marketing:</span>
+      <span class="check">${checkSI(cliente.privacy_accettata)} &nbsp;&nbsp; ${checkNO(cliente.privacy_accettata)}</span>
+    </div>
+    <div class="firma-box" style="color:#9ca3af;font-size:11px">Firma</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">3 — Cessione dati a terzi (facoltativo)</div>
+    <p>Comunicazione dei dati personali a società partner per finalità di marketing o ricerche di mercato.</p>
+    <div class="consenso">
+      <span>Consenso cessione:</span>
+      <span class="check">${checkSI(false)} &nbsp;&nbsp; ${checkNO(false)}</span>
+    </div>
+    <div class="firma-box" style="color:#9ca3af;font-size:11px">Firma</div>
+  </div>
+
+  <div style="margin-top:20px;display:flex;justify-content:space-between">
+    <div>Data: <strong>${data}</strong></div>
+    <div>Luogo: <strong>${cliente.comune || "_______________"}</strong></div>
+  </div>
+  <div class="footer">Documento generato automaticamente — ${negozioNome}</div>
+  </body></html>`;
+}
+
 export default function Clienti() {
   const [clienti, setClienti] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [loadingDettagli, setLoadingDettagli] = useState(false);
+  const [negozioNome, setNegozioNome] = useState("");
+
+  useEffect(() => {
+    supabase.from("negozio").select("nome").limit(1).single().then(({ data }) => {
+      if (data) setNegozioNome(data.nome || "");
+    });
+  }, []);
+
+  function scaricaPrivacyPdf(cliente: Cliente) {
+    const firmaPrivacy = cliente.foto?.find(f => f.tipo === "firma_privacy");
+    const html = buildPrivacyHtml(cliente, negozioNome, firmaPrivacy?.data_base64);
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 600); }
+  }
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff" };
   const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ background: bg, color, border: "none", borderRadius: 8, padding: "9px 18px", cursor: "pointer", fontWeight: 700, fontSize: 13 });
@@ -229,15 +305,20 @@ export default function Clienti() {
                     <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 10, letterSpacing: "0.08em" }}>
                       🔒 Privacy e Firme
                     </div>
-                    {selectedCliente.privacy_accettata ? (
-                      <div style={{ background: "#d1fae5", border: "1px solid #059669", borderRadius: 8, padding: "10px 14px", marginBottom: 10, fontSize: 13, color: "#065f46", fontWeight: 600 }}>
-                        ✅ Privacy accettata il {formatDate(selectedCliente.privacy_data)}
-                      </div>
-                    ) : (
-                      <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 8, padding: "10px 14px", marginBottom: 10, fontSize: 13, color: "#92400e" }}>
-                        ⚠️ Privacy non ancora accettata
-                      </div>
-                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      {selectedCliente.privacy_accettata ? (
+                        <div style={{ background: "#d1fae5", border: "1px solid #059669", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#065f46", fontWeight: 600, flex: 1, marginRight: 10 }}>
+                          ✅ Privacy accettata il {formatDate(selectedCliente.privacy_data)}
+                        </div>
+                      ) : (
+                        <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#92400e", flex: 1, marginRight: 10 }}>
+                          ⚠️ Privacy non ancora accettata
+                        </div>
+                      )}
+                      <button style={{ ...btn("#7c3aed"), whiteSpace: "nowrap" as const }} onClick={() => scaricaPrivacyPdf(selectedCliente)}>
+                        🔒 Stampa Privacy PDF
+                      </button>
+                    </div>
                     {(firmaCliente || firmaPrivacy) && (
                       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                         {firmaCliente && (
