@@ -66,7 +66,7 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
 <title>Scheda N° ${scheda.numero_scheda}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 13px; color: #000; background: #fff; padding: 28px 36px; }
+  body { font-family: Arial, sans-serif; font-size: 18px; color: #000; background: #fff; padding: 28px 36px; }
   .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
   .top-bar-left { font-size: 13px; }
   .top-bar-scheda { font-size: 16px; font-weight: 800; }
@@ -165,8 +165,15 @@ ${scheda.note_operazione ? `<div class="riga"><label>Note</label><span>${scheda.
 
 <!-- DICHIARAZIONE -->
 <div class="dichiarazione">
-  Il sottoscritto <strong>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</strong> dichiara che l'oggetto/i sopraindicato/i
-  è/sono di sua proprietà e che sullo stesso non esistono vincoli, garanzie e/o pegni di qualsivoglia natura.
+  Il/La sottoscritto/a <strong>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</strong>,
+  nato/a a <strong>${scheda.cliente?.luogo_nascita || "___"}</strong> il <strong>${formatDate(scheda.cliente?.data_nascita || "") || "___"}</strong>,
+  residente in <strong>${scheda.cliente?.indirizzo || "___"}, ${scheda.cliente?.comune || "___"}</strong>,
+  identificato/a tramite <strong>${scheda.tipo_documento || "___"} n. ${scheda.numero_documento || "___"}</strong>,
+  <br><br>
+  <strong>DICHIARA</strong> che l'oggetto/i sopraindicato/i è/sono di sua esclusiva proprietà
+  e che sullo stesso/i non esistono vincoli, garanzie e/o pegni di qualsivoglia natura.
+  <br><br>
+  Autorizza inoltre il trattamento dei propri dati personali ai sensi del D.Lgs. 196/2003 e del GDPR 2016/679.
 </div>
 
 <!-- FIRME -->
