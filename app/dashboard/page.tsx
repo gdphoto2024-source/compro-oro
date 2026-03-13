@@ -428,7 +428,7 @@ function PopupOggetti({ scheda, onClose, onLightbox }: { scheda: Scheda; onClose
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📦 Oggetti — Scheda N° {scheda.numero_scheda}</h2>
-            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>{scheda.nome_cognome} — {new Date(scheda.data_operazione).toLocaleDateString("it-IT")}</p>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>{scheda.cliente?.cognome} {scheda.cliente?.nome} — {new Date(scheda.data_operazione).toLocaleDateString("it-IT")}</p>
           </div>
           <button onClick={onClose} style={{ background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>✕ Chiudi</button>
         </div>
