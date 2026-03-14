@@ -819,11 +819,14 @@ ${paginaDocumenti}
 
       // 4. Foto documento
       if (fotoDocumento.length > 0) {
-        await supabase.from("foto_scheda").insert(fotoDocumento.map(f => ({
-          operazione_id: operazioneId,
-          tipo: f.nome.startsWith("fronte_") ? "documento_fronte" : f.nome.startsWith("retro_") ? "documento_retro" : "documento",
-          nome_file: f.nome, mime_type: f.mimeType, data_base64: f.base64,
-        })));
+        let extraCount = 0;
+        await supabase.from("foto_scheda").insert(fotoDocumento.map(f => {
+          let tipo: string;
+          if (f.nome.startsWith("fronte_")) tipo = "documento_fronte";
+          else if (f.nome.startsWith("retro_")) tipo = "documento_retro";
+          else { extraCount++; tipo = `documento_extra_${extraCount}`; }
+          return { operazione_id: operazioneId, tipo, nome_file: f.nome, mime_type: f.mimeType, data_base64: f.base64 };
+        }));
       }
 
       // 5. Foto oggetti

@@ -257,6 +257,8 @@ ${scheda.note_operazione && !scheda.note_operazione.startsWith("PRIVACY:") ? `<d
 function buildDocumentiHtml(scheda: Scheda, negozio: Negozio | null): string {
   const fotoFronte = scheda.foto.find(f => f.tipo === "documento_fronte");
   const fotoRetro = scheda.foto.find(f => f.tipo === "documento_retro");
+  // Include anche foto extra documento (tipo "documento" o "documento_extra_*")
+  const fotoExtra = scheda.foto.filter(f => f.tipo === "documento" || f.tipo.startsWith("documento_extra"));
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -310,6 +312,12 @@ ${fotoRetro ? `
   <div class="foto-label">📄 Retro Documento</div>
   <img src="data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}" class="foto-img" alt="Retro documento">
 </div>` : `<div class="nessuna-foto">Retro documento non disponibile</div>`}
+
+${fotoExtra.length > 0 ? fotoExtra.map((f, i) => `
+<div class="foto-section">
+  <div class="foto-label">📎 Allegato ${i + 1}</div>
+  <img src="data:${f.mime_type};base64,${f.data_base64}" class="foto-img" alt="Allegato ${i + 1}">
+</div>`).join("") : ""}
 
 <div style="margin-top:20px;padding-top:12px;border-top:1px solid #ccc;font-size:10px;color:#999;text-align:center">
   Documento interno — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generato il ${new Date().toLocaleDateString("it-IT")}
