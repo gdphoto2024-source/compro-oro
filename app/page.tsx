@@ -338,6 +338,58 @@ function PrivacyPopup({ negozio, cliente, onConferma, onAnnulla }: {
   );
 }
 
+const OGGETTI_SUGGERITI = [
+  "anello","anello con pietre","fede","braccialetto","braccialetto con pietre",
+  "bracciale","bracciale rigido","bracciale multiplo","bracciale con pietre",
+  "bracciale con ciondoli","collanina","collanina con ciondoli","collanina con pietre",
+  "girocollo","girocollo con pietre","paia orecchini","paia orecchini con pietre",
+  "orecchino spaiato","orecchino spaiato con pietre","portachiavi","fermacravatta",
+  "spilla","spilla con pietre","spilla con ciondoli","cassa fondello orologio",
+  "cassa-fondello cinghietto orologio","medaglia",
+];
+
+function OggettoAutocomplete({ value, onChange, inp }: { value: string; onChange: (v: string) => void; inp: React.CSSProperties }) {
+  const [open, setOpen] = useState(false);
+  const filtrati = value.length > 0
+    ? OGGETTI_SUGGERITI.filter(o => o.toLowerCase().includes(value.toLowerCase()))
+    : OGGETTI_SUGGERITI;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        style={inp}
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Digita o scegli..."
+        autoComplete="off"
+      />
+      {open && filtrati.length > 0 && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 200,
+          background: "#fff", border: "1.5px solid #2563eb", borderRadius: 8,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 220, overflowY: "auto",
+        }}>
+          {filtrati.map(o => (
+            <div key={o}
+              onMouseDown={() => { onChange(o); setOpen(false); }}
+              style={{
+                padding: "9px 14px", cursor: "pointer", fontSize: 13,
+                borderBottom: "1px solid #f3f4f6",
+                background: value === o ? "#eff6ff" : "#fff",
+                fontWeight: value === o ? 700 : 400,
+              }}
+            >
+              {o}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SchedaAcquisti() {
   const [customer, setCustomer] = useState({ ...emptyCustomer });
   const [items, setItems] = useState([{ ...emptyItem }]);
@@ -1060,7 +1112,9 @@ ${paginaDocumenti}
                 <button style={btn("#fee2e2", "#dc2626")} onClick={() => setItems(p => p.length > 1 ? p.filter((_, j) => j !== i) : p)}>Elimina</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
-                <Field label="Descrizione"><input style={inp} value={item.descrizione} onChange={e => ui(i, "descrizione", e.target.value)} /></Field>
+                <Field label="Descrizione">
+                  <OggettoAutocomplete value={item.descrizione} onChange={v => ui(i, "descrizione", v)} inp={inp} />
+                </Field>
                 <Field label="AU / AG">
                   <select style={inp} value={item.materiale} onChange={e => ui(i, "materiale", e.target.value)}>
                     <option value="oro">AU — Oro</option>
