@@ -865,7 +865,7 @@ export default function Dashboard() {
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", minWidth: 60 }}>Scheda:</span>
                     <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                     <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
-                    <button style={btn("#059669")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupOggetti(s); }}>📦 Oggetti</button>
+                    <button style={btn("#059669")} onClick={() => { const win = null; caricaFotoScheda(scheda.id).then(foto => setPopupOggetti({ ...scheda, foto })); }}>📦 Oggetti</button>
                     <button style={btn(scheda.cliente?.email ? "#0284c7" : "#9ca3af")} onClick={() => inviaEmail(scheda)} disabled={!scheda.cliente?.email}>📧 Invia Email</button>
                     {emailStatus[scheda.id] && (
                       <span style={{ fontSize: 13, fontWeight: 600, color: emailStatus[scheda.id].startsWith("✅") ? "#059669" : emailStatus[scheda.id].startsWith("⏳") ? "#2563eb" : "#dc2626" }}>
