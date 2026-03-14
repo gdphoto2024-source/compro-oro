@@ -284,12 +284,8 @@ function buildDocumentiHtml(scheda: Scheda, negozio: Negozio | null): string {
 <body>
 
 <div class="header">
-  <div class="titolo">Documenti di Identità</div>
-  <div class="sottotitolo">
-    ${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""} —
-    Scheda N° ${scheda.numero_scheda} — ${formatDate(scheda.data_operazione)}
-  </div>
-  ${negozio?.nome ? `<div style="font-size:12px;color:#888;margin-top:4px">${negozio.nome}</div>` : ""}
+  <div class="titolo">DOCUMENTI</div>
+  <div class="sottotitolo">Scheda N° ${scheda.numero_scheda}</div>
 </div>
 
 <div class="dati-cliente">

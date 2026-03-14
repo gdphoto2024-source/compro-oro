@@ -560,6 +560,8 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
     const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
     const fotoFronteMime = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.mimeType || "image/jpeg";
     const fotoRetroMime = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.mimeType || "image/jpeg";
+    // Foto extra documento (Altre foto documento)
+    const fotoExtra = fotoDocumento.filter(f => !f.nome.startsWith("fronte_") && !f.nome.startsWith("retro_"));
     const firmaClienteB64 = firmaDataUrl ? firmaDataUrl.split(",")[1] || firmaDataUrl : "";
     const firmaRicevutaB64 = firmaRicevutaDataUrl ? firmaRicevutaDataUrl.split(",")[1] || firmaRicevutaDataUrl : "";
 
@@ -567,34 +569,14 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
       ? `SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI — ${negozio.nome} — P.IVA ${negozio.piva || ""}`
       : "SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI";
 
-    // Pagina 2 documenti (solo se nuovo cliente e ha le foto)
-    const paginaDocumenti = (isNuovoCliente && (fotoFronteB64 || fotoRetroB64)) ? `
+    // Pagina 2 documenti (solo se nuovo cliente e ha almeno una foto)
+    const haFoto = fotoFronteB64 || fotoRetroB64 || fotoExtra.length > 0;
+    const paginaDocumenti = (isNuovoCliente && haFoto) ? `
 <div style="page-break-before:always; padding: 20px 28px;">
   <div style="text-align:center; margin-bottom:20px; padding-bottom:14px; border-bottom:2px solid #000;">
-    <div style="font-size:18px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em;">Documenti di Identità</div>
-    <div style="font-size:13px; color:#555; margin-top:6px;">
-      ${customer.cognome} ${customer.nome} — Scheda N° ${numScheda} — ${dataOra}
-    </div>
-    ${negozio?.nome ? `<div style="font-size:11px;color:#888;margin-top:3px;">${negozio.nome}</div>` : ""}
+    <div style="font-size:20px; font-weight:800; text-transform:uppercase; letter-spacing:0.08em;">DOCUMENTI</div>
+    <div style="font-size:16px; font-weight:700; margin-top:6px;">Scheda N° ${numScheda}</div>
   </div>
-  <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-    <tr>
-      <th style="border:1px solid #ccc;padding:6px 10px;background:#f3f4f6;text-align:left;font-size:11px;width:140px;">Tipo documento</th>
-      <td style="border:1px solid #ccc;padding:6px 10px;font-size:13px;">${customer.tipoDocumento}</td>
-      <th style="border:1px solid #ccc;padding:6px 10px;background:#f3f4f6;text-align:left;font-size:11px;width:120px;">N° documento</th>
-      <td style="border:1px solid #ccc;padding:6px 10px;font-size:13px;">${customer.numeroDocumento}</td>
-    </tr>
-    <tr>
-      <th style="border:1px solid #ccc;padding:6px 10px;background:#f3f4f6;text-align:left;font-size:11px;">Rilasciato da</th>
-      <td style="border:1px solid #ccc;padding:6px 10px;font-size:13px;">${customer.enteRilascio}</td>
-      <th style="border:1px solid #ccc;padding:6px 10px;background:#f3f4f6;text-align:left;font-size:11px;">Scadenza</th>
-      <td style="border:1px solid #ccc;padding:6px 10px;font-size:13px;">${formatDate(customer.dataScadenza)}</td>
-    </tr>
-    <tr>
-      <th style="border:1px solid #ccc;padding:6px 10px;background:#f3f4f6;text-align:left;font-size:11px;">Codice Fiscale</th>
-      <td colspan="3" style="border:1px solid #ccc;padding:6px 10px;font-size:13px;font-weight:700;font-family:monospace;">${customer.codiceFiscale}</td>
-    </tr>
-  </table>
   ${fotoFronteB64 ? `
   <div style="margin-bottom:20px;">
     <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#555;margin-bottom:10px;letter-spacing:0.06em;">📄 Fronte Documento</div>
@@ -605,6 +587,11 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
     <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#555;margin-bottom:10px;letter-spacing:0.06em;">📄 Retro Documento</div>
     <img src="data:${fotoRetroMime};base64,${fotoRetroB64}" style="width:100%;max-width:500px;border:1.5px solid #ccc;border-radius:8px;display:block;margin:0 auto;" alt="Retro">
   </div>` : ""}
+  ${fotoExtra.map((f, i) => `
+  <div style="margin-bottom:20px;">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#555;margin-bottom:10px;letter-spacing:0.06em;">📎 Allegato ${i + 1}</div>
+    <img src="data:${f.mimeType};base64,${f.base64}" style="width:100%;max-width:500px;border:1.5px solid #ccc;border-radius:8px;display:block;margin:0 auto;" alt="Allegato ${i + 1}">
+  </div>`).join("")}
   <div style="margin-top:16px;font-size:10px;color:#999;text-align:center;border-top:1px solid #ccc;padding-top:10px;">
     Documento interno — ${negozio?.nome || ""} — Generato il ${new Date().toLocaleDateString("it-IT")}
   </div>
