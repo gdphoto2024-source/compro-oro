@@ -811,7 +811,8 @@ export default function Dashboard() {
           <span style={{ fontSize: 13, color: "#6b7280", marginLeft: "auto" }}>{schedeFiltered.length} risultati</span>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
+        {/* Statistiche rapide */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14, marginBottom: 16 }}>
           {[
             { label: "Schede totali", val: schede.length, color: "#2563eb" },
             { label: "Totale acquistato", val: currency(schede.reduce((a, s) => a + (s.totale_valore || 0), 0)), color: "#059669" },
@@ -819,11 +820,83 @@ export default function Dashboard() {
             { label: "Questo mese", val: schede.filter(s => s.data_operazione?.slice(0, 7) === new Date().toISOString().slice(0, 7)).length, color: "#7c3aed" },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", borderLeft: `4px solid ${color}` }}>
-              <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+              <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 6 }}>{label}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color }}>{val}</div>
             </div>
           ))}
         </div>
+
+        {/* Statistiche grammi per mese */}
+        {(() => {
+          const meseCorrente = new Date().toISOString().slice(0, 7);
+          const schedeDelMese = schede.filter(s => s.data_operazione?.slice(0, 7) === meseCorrente);
+          const auMese = schedeDelMese.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_au || 0), 0), 0);
+          const agMese = schedeDelMese.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_ag || 0), 0), 0);
+          const auTot = schede.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_au || 0), 0), 0);
+          const agTot = schede.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_ag || 0), 0), 0);
+
+          // Grammi per mese (ultimi 6 mesi)
+          const mesi: { mese: string; au: number; ag: number }[] = [];
+          for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = d.toISOString().slice(0, 7);
+            const nome = d.toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
+            const schedeM = schede.filter(s => s.data_operazione?.slice(0, 7) === key);
+            const au = schedeM.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_au || 0), 0), 0);
+            const ag = schedeM.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_ag || 0), 0), 0);
+            mesi.push({ mese: nome, au, ag });
+          }
+          const maxVal = Math.max(...mesi.map(m => Math.max(m.au, m.ag)), 1);
+
+          return (
+            <div style={{ background: "#fff", borderRadius: 14, padding: 20, marginBottom: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.05em", margin: 0, color: "#111827" }}>
+                  ⚖️ Grammi acquistati
+                </h3>
+                <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#d97706", textTransform: "uppercase" as const }}>AU questo mese</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#d97706" }}>{auMese.toFixed(2)} g</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" as const }}>AG questo mese</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#6b7280" }}>{agMese.toFixed(2)} g</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#d97706", textTransform: "uppercase" as const }}>AU totale</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#d97706" }}>{auTot.toFixed(2)} g</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" as const }}>AG totale</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "#6b7280" }}>{agTot.toFixed(2)} g</div>
+                  </div>
+                </div>
+              </div>
+              {/* Grafico a barre */}
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 100 }}>
+                {mesi.map((m, i) => (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                    <div style={{ width: "100%", display: "flex", gap: 2, alignItems: "flex-end", height: 80 }}>
+                      <div title={`AU: ${m.au.toFixed(2)}g`} style={{ flex: 1, background: "#fbbf24", borderRadius: "3px 3px 0 0", height: `${(m.au / maxVal) * 100}%`, minHeight: m.au > 0 ? 4 : 0, transition: "height 0.3s" }} />
+                      <div title={`AG: ${m.ag.toFixed(2)}g`} style={{ flex: 1, background: "#d1d5db", borderRadius: "3px 3px 0 0", height: `${(m.ag / maxVal) * 100}%`, minHeight: m.ag > 0 ? 4 : 0, transition: "height 0.3s" }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{m.mese}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 16, marginTop: 10, justifyContent: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#6b7280" }}>
+                  <div style={{ width: 12, height: 12, background: "#fbbf24", borderRadius: 2 }} /> AU – Oro
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#6b7280" }}>
+                  <div style={{ width: 12, height: 12, background: "#d1d5db", borderRadius: 2 }} /> AG – Argento
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {loading ? (
           <div style={{ textAlign: "center", padding: 60, color: "#6b7280", fontSize: 16 }}>⏳ Caricamento schede...</div>

@@ -427,6 +427,8 @@ export default function SchedaAcquisti() {
   const [documentoScaduto, setDocumentoScaduto] = useState(false);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
+  const pesoAuTot = useMemo(() => items.reduce((a, i) => a + Number(i.pesoAu || 0), 0), [items]);
+  const pesoAgTot = useMemo(() => items.reduce((a, i) => a + Number(i.pesoAg || 0), 0), [items]);
 
   useEffect(() => {
     async function init() {
@@ -1155,7 +1157,24 @@ ${paginaDocumenti}
               </div>
             </div>
           ))}
-          <div style={{ textAlign: "right", fontSize: 22, fontWeight: 700, marginTop: 8 }}>Totale: {currency(totale)}</div>
+          <div style={{ marginTop: 16, background: "#f9fafb", border: "1.5px solid #e5e7eb", borderRadius: 10, padding: "14px 20px", display: "flex", justifyContent: "flex-end", gap: 32, flexWrap: "wrap", alignItems: "center" }}>
+            {pesoAuTot > 0 && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: "#d97706", letterSpacing: "0.05em" }}>Peso AU Totale</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#d97706" }}>{pesoAuTot.toFixed(2)} g</div>
+              </div>
+            )}
+            {pesoAgTot > 0 && (
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", letterSpacing: "0.05em" }}>Peso AG Totale</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#6b7280" }}>{pesoAgTot.toFixed(2)} g</div>
+              </div>
+            )}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: "#059669", letterSpacing: "0.05em" }}>Totale Valore</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#059669" }}>{currency(totale)}</div>
+            </div>
+          </div>
         </section>
 
         {/* 4. Firma cliente */}
