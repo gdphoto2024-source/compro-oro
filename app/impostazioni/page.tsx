@@ -16,6 +16,9 @@ const empty: NegozioData = {
   numero_scheda_iniziale: 1, testo_privacy: "",
 };
 
+// Password per il reset — cambiala qui se vuoi
+const RESET_PASSWORD = "dav1965883883";
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -110,6 +113,13 @@ export default function Impostazioni() {
   const logoRef = useRef<HTMLInputElement>(null);
   const firmaFileRef = useRef<HTMLInputElement>(null);
 
+  // Reset state
+  const [showReset, setShowReset] = useState(false);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetErrore, setResetErrore] = useState("");
+  const [resetando, setResetando] = useState(false);
+  const [resetOk, setResetOk] = useState(false);
+
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
   const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ background: bg, color, border: "none", borderRadius: 9, padding: "11px 22px", cursor: "pointer", fontWeight: 700, fontSize: 14, fontFamily: "inherit" });
   const statusColors: any = { idle: "#6b7280", loading: "#2563eb", success: "#059669", error: "#dc2626" };
@@ -171,6 +181,31 @@ export default function Impostazioni() {
       setStatus({ text: `❌ Errore: ${e.message}`, type: "error" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function eseguiReset() {
+    if (resetPassword !== RESET_PASSWORD) {
+      setResetErrore("❌ Password errata. Riprova.");
+      return;
+    }
+    setResetErrore("");
+    setResetando(true);
+    try {
+      // Cancella in ordine (rispettando le foreign key)
+      await supabase.from("foto_scheda").delete().neq("id", 0);
+      await supabase.from("oggetti").delete().neq("id", 0);
+      await supabase.from("operazioni").delete().neq("id", 0);
+      await supabase.from("clienti").delete().neq("id", 0);
+
+      setResetOk(true);
+      setShowReset(false);
+      setResetPassword("");
+      setStatus({ text: "✅ Tutti i dati clienti e schede sono stati eliminati.", type: "success" });
+    } catch (e: any) {
+      setResetErrore("❌ Errore durante il reset: " + e.message);
+    } finally {
+      setResetando(false);
     }
   }
 
@@ -237,7 +272,6 @@ export default function Impostazioni() {
             </div>
           ) : (
             <div>
-              {/* Tab disegna / carica */}
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
                 <button type="button"
                   style={{ ...btn(firmaMode === "disegna" ? "#111827" : "#f3f4f6", firmaMode === "disegna" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }}
@@ -278,11 +312,86 @@ export default function Impostazioni() {
           />
         </section>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", paddingBottom: 40 }}>
+        {/* Salva */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 40 }}>
           <button style={{ ...btn(saving ? "#9ca3af" : "#059669"), fontSize: 16, padding: "14px 36px" }} onClick={salva} disabled={saving}>
             {saving ? "⏳ Salvataggio..." : "💾 Salva Impostazioni"}
           </button>
         </div>
+
+        {/* ---- ZONA PERICOLOSA ---- */}
+        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 40, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "2px solid #dc2626" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "#dc2626" }}>
+            ⚠️ Zona Pericolosa
+          </h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+            Le operazioni qui sotto sono <strong>irreversibili</strong>. I dati cancellati non possono essere recuperati.
+          </p>
+
+          {resetOk && (
+            <div style={{ background: "#d1fae5", border: "1px solid #059669", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 14, color: "#065f46", fontWeight: 600 }}>
+              ✅ Reset completato — tutti i clienti e le schede sono stati eliminati.
+            </div>
+          )}
+
+          {!showReset ? (
+            <button
+              style={{ ...btn("#dc2626"), fontSize: 14 }}
+              onClick={() => { setShowReset(true); setResetOk(false); setResetErrore(""); setResetPassword(""); }}
+            >
+              🗑 Azzera clienti e schede
+            </button>
+          ) : (
+            <div style={{ background: "#fef2f2", border: "1.5px solid #dc2626", borderRadius: 12, padding: 20 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#dc2626", marginBottom: 8 }}>
+                🚨 Sei sicuro di voler cancellare TUTTO?
+              </div>
+              <p style={{ fontSize: 13, color: "#7f1d1d", marginBottom: 16, lineHeight: 1.6 }}>
+                Verranno eliminati definitivamente:<br />
+                • Tutti i clienti registrati<br />
+                • Tutte le schede acquisto<br />
+                • Tutti gli oggetti e le foto<br />
+                • Tutte le firme e i documenti<br />
+                <br />
+                <strong>I dati del negozio e le impostazioni NON verranno toccati.</strong>
+              </p>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", display: "block", marginBottom: 6 }}>
+                  Inserisci la password per confermare
+                </label>
+                <input
+                  type="password"
+                  style={{ ...inp, border: "1.5px solid #dc2626", maxWidth: 300 }}
+                  value={resetPassword}
+                  onChange={e => { setResetPassword(e.target.value); setResetErrore(""); }}
+                  placeholder="Password..."
+                  onKeyDown={e => { if (e.key === "Enter") eseguiReset(); }}
+                />
+              </div>
+
+              {resetErrore && (
+                <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{resetErrore}</div>
+              )}
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <button
+                  style={{ ...btn(resetando ? "#9ca3af" : "#dc2626"), fontSize: 14 }}
+                  onClick={eseguiReset}
+                  disabled={resetando || !resetPassword}
+                >
+                  {resetando ? "⏳ Eliminazione in corso..." : "🗑 Conferma eliminazione"}
+                </button>
+                <button
+                  style={{ ...btn("#f3f4f6", "#374151"), fontSize: 14 }}
+                  onClick={() => { setShowReset(false); setResetPassword(""); setResetErrore(""); }}
+                >
+                  Annulla
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
 
       </div>
     </div>
