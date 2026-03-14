@@ -655,78 +655,92 @@ export default function Dashboard() {
     return matchSearch && matchData;
   });
 
-  // Carica foto complete on-demand (lazy) e aggiorna la scheda nello state
+  // Carica foto complete on-demand (lazy)
   const fotoLoadedRef = React.useRef<Set<number>>(new Set());
-  async function caricaFotoScheda(scheda: Scheda): Promise<Scheda> {
-    if (fotoLoadedRef.current.has(scheda.id)) {
-      // Già caricate — restituisce la versione aggiornata dallo state
-      return schede.find(s => s.id === scheda.id) || scheda;
+  async function caricaFotoScheda(schedaId: number): Promise<{ tipo: string; data_base64: string; mime_type: string }[]> {
+    // Se già caricate, prendi dallo state
+    const schedaInState = schede.find(s => s.id === schedaId);
+    if (fotoLoadedRef.current.has(schedaId) && schedaInState) {
+      return schedaInState.foto;
     }
     const { data: foto } = await supabase
       .from("foto_scheda")
       .select("tipo, data_base64, mime_type")
-      .eq("operazione_id", scheda.id);
+      .eq("operazione_id", schedaId);
     const fotoComplete = foto || [];
-    fotoLoadedRef.current.add(scheda.id);
-    setSchede(prev => prev.map(s => s.id === scheda.id ? { ...s, foto: fotoComplete } : s));
-    return { ...scheda, foto: fotoComplete };
+    fotoLoadedRef.current.add(schedaId);
+    setSchede(prev => prev.map(s => s.id === schedaId ? { ...s, foto: fotoComplete } : s));
+    return fotoComplete;
   }
 
-  async function apriPDF(scheda: Scheda) {
-    const s = await caricaFotoScheda(scheda);
-    const html = buildPDFHtml(s, negozio);
+  // Apre window SUBITO (nel click handler) poi riempie con i dati
+  function apriPDF(scheda: Scheda) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento PDF...</p></body></html>");
+    caricaFotoScheda(scheda.id).then(foto => {
+      const s = { ...scheda, foto };
+      const html = buildPDFHtml(s, negozio);
+      win.document.open(); win.document.write(html); win.document.close();
+    });
   }
 
-  async function stampaPDF(scheda: Scheda) {
-    const s = await caricaFotoScheda(scheda);
-    const html = buildPDFHtml(s, negozio);
+  function stampaPDF(scheda: Scheda) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => { win.focus(); win.print(); };
+    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
+    caricaFotoScheda(scheda.id).then(foto => {
+      const s = { ...scheda, foto };
+      const html = buildPDFHtml(s, negozio);
+      win.document.open(); win.document.write(html); win.document.close();
+      setTimeout(() => { win.focus(); win.print(); }, 800);
+    });
   }
 
-  async function apriDocumenti(scheda: Scheda) {
-    const s = await caricaFotoScheda(scheda);
-    const html = buildDocumentiHtml(s, negozio);
+  function apriDocumenti(scheda: Scheda) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento documenti...</p></body></html>");
+    caricaFotoScheda(scheda.id).then(foto => {
+      const s = { ...scheda, foto };
+      const html = buildDocumentiHtml(s, negozio);
+      win.document.open(); win.document.write(html); win.document.close();
+    });
   }
 
-  async function stampaDocumenti(scheda: Scheda) {
-    const s = await caricaFotoScheda(scheda);
-    const html = buildDocumentiHtml(s, negozio);
+  function stampaDocumenti(scheda: Scheda) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => { win.focus(); win.print(); };
+    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
+    caricaFotoScheda(scheda.id).then(foto => {
+      const s = { ...scheda, foto };
+      const html = buildDocumentiHtml(s, negozio);
+      win.document.open(); win.document.write(html); win.document.close();
+      setTimeout(() => { win.focus(); win.print(); }, 800);
+    });
   }
 
-  async function apriPrivacy(scheda: Scheda) {
-    const s = await caricaFotoScheda(scheda);
-    const html = buildPrivacyHtml(s, negozio);
+  function apriPrivacy(scheda: Scheda) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
-    win.document.close();
+    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento privacy...</p></body></html>");
+    caricaFotoScheda(scheda.id).then(foto => {
+      const s = { ...scheda, foto };
+      const html = buildPrivacyHtml(s, negozio);
+      win.document.open(); win.document.write(html); win.document.close();
+    });
   }
 
-  async function stampaPrivacy(scheda: Scheda) {
-    const s = await caricaFotoScheda(scheda);
-    const html = buildPrivacyHtml(s, negozio);
+  function stampaPrivacy(scheda: Scheda) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.onload = () => { win.focus(); win.print(); };
+    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
+    caricaFotoScheda(scheda.id).then(foto => {
+      const s = { ...scheda, foto };
+      const html = buildPrivacyHtml(s, negozio);
+      win.document.open(); win.document.write(html); win.document.close();
+      setTimeout(() => { win.focus(); win.print(); }, 800);
+    });
   }
 
   async function inviaEmail(scheda: Scheda) {
