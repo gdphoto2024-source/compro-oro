@@ -1229,15 +1229,12 @@ ${paginaDocumenti}
           <div style={{ textAlign: "right", fontSize: 22, fontWeight: 700, marginTop: 16 }}>Totale calcolato: {currency(totale)}</div>
         </section>
 
-        {/* 6. Testo OCR */}
-        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 18px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>6 — Testo letto da Claude AI</h2>
-          {loading && <p style={{ color: "#2563eb", fontWeight: 600, marginBottom: 12 }}>⏳ Elaborazione in corso...</p>}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-            <TextBox title="Testo fronte" text={frontRawText || "Nessun testo estratto."} />
-            <TextBox title="Testo retro" text={backRawText || "Nessun testo estratto."} />
-          </div>
-        </section>
+        {/* 6. Testo OCR — nascosto visivamente ma attivo */}
+        <div style={{ display: "none" }}>
+          {loading && <span />}
+          <span>{frontRawText}</span>
+          <span>{backRawText}</span>
+        </div>
 
         {/* 7. Firma Ricevuta */}
         <section ref={firmaRicevutaRef} style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: !firmaRicevutaDataUrl ? "2px solid #fbbf24" : "2px solid #059669" }}>
