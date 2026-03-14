@@ -424,6 +424,7 @@ export default function SchedaAcquisti() {
   const [clienteSelezionato, setClienteSelezionato] = useState<ClienteDB | null>(null);
   const [avvisoOmonimi, setAvvisoOmonimi] = useState<ClienteDB[]>([]);
   const [lightbox, setLightbox] = useState<{ src: string; nome: string } | null>(null);
+  const [documentoScaduto, setDocumentoScaduto] = useState(false);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
 
@@ -870,7 +871,7 @@ ${paginaDocumenti}
     setFrontFile(null); setBackFile(null); setFrontPreview(""); setBackPreview("");
     setFrontRawText(""); setBackRawText(""); setFotoDocumento([]);
     setFirmaDataUrl(null); setFirmaPrivacyBase64(null); setFirmaRicevutaDataUrl(null);
-    setSavedOk(false); setClienteSelezionato(null); setAvvisoOmonimi([]);
+    setSavedOk(false); setClienteSelezionato(null); setAvvisoOmonimi([]); setDocumentoScaduto(false);
     setStatus({ text: "Nuova scheda pronta.", type: "idle" });
     if (frontRef.current) frontRef.current.value = "";
     if (backRef.current) backRef.current.value = "";
@@ -909,7 +910,29 @@ ${paginaDocumenti}
       telefono: cliente.telefono || "", email: cliente.email || "", note: cliente.note || "",
     });
     const privacyMsg = cliente.privacy_accettata ? " — ✅ privacy già firmata." : " — ⚠️ privacy da firmare.";
-    setStatus({ text: `👤 Cliente caricato: ${cliente.cognome} ${cliente.nome}${privacyMsg}`, type: "success" });
+
+    // Controlla scadenza documento
+    const scadenza = lastOp?.data_scadenza;
+    if (scadenza) {
+      const oggi = new Date();
+      oggi.setHours(0, 0, 0, 0);
+      const dataScad = new Date(scadenza);
+      dataScad.setHours(0, 0, 0, 0);
+      if (dataScad < oggi) {
+        // Documento scaduto
+        setDocumentoScaduto(true);
+        setStatus({
+          text: `⚠️ ATTENZIONE — Il documento di ${cliente.cognome} ${cliente.nome} è SCADUTO il ${dataScad.toLocaleDateString("it-IT")}! Richiedere documento valido aggiornato.`,
+          type: "error"
+        });
+      } else {
+        setDocumentoScaduto(false);
+        setStatus({ text: `👤 Cliente caricato: ${cliente.cognome} ${cliente.nome}${privacyMsg}`, type: "success" });
+      }
+    } else {
+      setDocumentoScaduto(false);
+      setStatus({ text: `👤 Cliente caricato: ${cliente.cognome} ${cliente.nome}${privacyMsg}`, type: "success" });
+    }
   }
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box", background: "#fff", fontFamily: "inherit" };
@@ -1095,6 +1118,17 @@ ${paginaDocumenti}
           <div style={{ marginTop: 14 }}>
             <Field label="Note cliente"><textarea style={{ ...inp, height: 80, paddingTop: 10 }} value={customer.note} onChange={e => uc("note", e.target.value)} /></Field>
           </div>
+          {documentoScaduto && (
+            <div style={{ marginTop: 16, padding: "14px 18px", background: "#fef2f2", borderRadius: 10, border: "2px solid #dc2626" }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#dc2626", marginBottom: 6 }}>
+                🚨 DOCUMENTO SCADUTO
+              </div>
+              <div style={{ fontSize: 13, color: "#7f1d1d", lineHeight: 1.6 }}>
+                Il documento di identità del cliente risulta <strong>scaduto</strong>.<br />
+                È necessario richiedere un documento valido aggiornato e ricaricare fronte/retro nella sezione 1.
+              </div>
+            </div>
+          )}
           {clienteSelezionato?.privacy_accettata && !firmaPrivacyBase64 && (
             <div style={{ marginTop: 16, padding: 12, background: "#eff6ff", borderRadius: 10, border: "1px solid #2563eb" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#1d4ed8" }}>✅ Privacy già firmata in precedenza — non verrà richiesta nuovamente.</div>
