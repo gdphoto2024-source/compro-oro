@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 function NavBar() {
@@ -607,6 +607,7 @@ export default function Dashboard() {
       const { data: neg } = await supabase.from("negozio").select("*").eq("id", 1).single();
       if (neg) setNegozio(neg as Negozio);
 
+      // Carica schede SENZA base64 delle foto — lazy load on-demand
       const { data: ops, error } = await supabase
         .from("operazioni")
         .select(`
@@ -614,7 +615,7 @@ export default function Dashboard() {
           tipo_documento, numero_documento, data_rilascio, data_scadenza, ente_rilascio,
           clienti (nome, cognome, email, codice_fiscale, luogo_nascita, data_nascita, indirizzo, comune, provincia, cap),
           oggetti (descrizione, materiale, peso_au, peso_ag, valore),
-          foto_scheda (tipo, data_base64, mime_type)
+          foto_scheda (tipo)
         `)
         .order("numero_scheda", { ascending: false });
 
@@ -634,7 +635,8 @@ export default function Dashboard() {
           ente_rilascio: op.ente_rilascio || "",
           cliente: op.clienti,
           oggetti: op.oggetti || [],
-          foto: op.foto_scheda || [],
+          // Solo tipo, senza base64 — serve per badge ✅ firma/privacy
+          foto: (op.foto_scheda || []).map((f: any) => ({ tipo: f.tipo, data_base64: "", mime_type: "" })),
         })));
       }
       setLoading(false);
@@ -653,16 +655,35 @@ export default function Dashboard() {
     return matchSearch && matchData;
   });
 
-  function apriPDF(scheda: Scheda) {
-    const html = buildPDFHtml(scheda, negozio);
+  // Carica foto complete on-demand (lazy) e aggiorna la scheda nello state
+  const fotoLoadedRef = React.useRef<Set<number>>(new Set());
+  async function caricaFotoScheda(scheda: Scheda): Promise<Scheda> {
+    if (fotoLoadedRef.current.has(scheda.id)) {
+      // Già caricate — restituisce la versione aggiornata dallo state
+      return schede.find(s => s.id === scheda.id) || scheda;
+    }
+    const { data: foto } = await supabase
+      .from("foto_scheda")
+      .select("tipo, data_base64, mime_type")
+      .eq("operazione_id", scheda.id);
+    const fotoComplete = foto || [];
+    fotoLoadedRef.current.add(scheda.id);
+    setSchede(prev => prev.map(s => s.id === scheda.id ? { ...s, foto: fotoComplete } : s));
+    return { ...scheda, foto: fotoComplete };
+  }
+
+  async function apriPDF(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildPDFHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
     win.document.close();
   }
 
-  function stampaPDF(scheda: Scheda) {
-    const html = buildPDFHtml(scheda, negozio);
+  async function stampaPDF(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildPDFHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
@@ -670,16 +691,18 @@ export default function Dashboard() {
     win.onload = () => { win.focus(); win.print(); };
   }
 
-  function apriDocumenti(scheda: Scheda) {
-    const html = buildDocumentiHtml(scheda, negozio);
+  async function apriDocumenti(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildDocumentiHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
     win.document.close();
   }
 
-  function stampaDocumenti(scheda: Scheda) {
-    const html = buildDocumentiHtml(scheda, negozio);
+  async function stampaDocumenti(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildDocumentiHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
@@ -687,16 +710,18 @@ export default function Dashboard() {
     win.onload = () => { win.focus(); win.print(); };
   }
 
-  function apriPrivacy(scheda: Scheda) {
-    const html = buildPrivacyHtml(scheda, negozio);
+  async function apriPrivacy(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildPrivacyHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
     win.document.close();
   }
 
-  function stampaPrivacy(scheda: Scheda) {
-    const html = buildPrivacyHtml(scheda, negozio);
+  async function stampaPrivacy(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildPrivacyHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
@@ -830,7 +855,7 @@ export default function Dashboard() {
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", minWidth: 60 }}>Scheda:</span>
                     <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                     <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
-                    <button style={btn("#059669")} onClick={() => setPopupOggetti(scheda)}>📦 Oggetti</button>
+                    <button style={btn("#059669")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupOggetti(s); }}>📦 Oggetti</button>
                     <button style={btn(scheda.cliente?.email ? "#0284c7" : "#9ca3af")} onClick={() => inviaEmail(scheda)} disabled={!scheda.cliente?.email}>📧 Invia Email</button>
                     {emailStatus[scheda.id] && (
                       <span style={{ fontSize: 13, fontWeight: 600, color: emailStatus[scheda.id].startsWith("✅") ? "#059669" : emailStatus[scheda.id].startsWith("⏳") ? "#2563eb" : "#dc2626" }}>
