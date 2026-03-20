@@ -411,6 +411,36 @@ ${sezioni.map((s, i) => `
 </body></html>`;
 }
 
+function buildDocumentiHtml(scheda: Scheda): string {
+  const fotoFronte = scheda.foto.find(f => f.tipo === "documento_fronte");
+  const fotoRetro = scheda.foto.find(f => f.tipo === "documento_retro");
+  return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Documenti N° ${scheda.numero_scheda}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+  .hdr { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 12px; }
+  .titolo { font-size: 14px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; }
+  .foto-section { margin-bottom: 20px; }
+  .foto-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 8px; letter-spacing: 1px; }
+  .foto-grande { width: 100%; max-height: 340px; object-fit: contain; border: 1px solid #ccc; border-radius: 8px; display: block; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+<div class="hdr">
+  <div style="font-size:16px;font-weight:800">Scheda N° ${scheda.numero_scheda}</div>
+  <div style="text-align:right">${new Date(scheda.data_operazione).toLocaleDateString("it-IT")}</div>
+</div>
+<div class="titolo">Documenti di Identità</div>
+<div class="info-box">
+  <strong>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</strong> — CF: ${scheda.cliente?.codice_fiscale || "—"}<br>
+  ${scheda.tipo_documento || ""} N° ${scheda.numero_documento || ""} — Scad.: ${scheda.data_scadenza ? new Date(scheda.data_scadenza).toLocaleDateString("it-IT") : "—"}
+</div>
+${fotoFronte ? `<div class="foto-section"><div class="foto-label">📄 Fronte documento</div><img src="data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}" class="foto-grande" alt="Fronte"></div>` : ""}
+${fotoRetro ? `<div class="foto-section"><div class="foto-label">📄 Retro documento</div><img src="data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}" class="foto-grande" alt="Retro"></div>` : ""}
+${!fotoFronte && !fotoRetro ? `<div style="text-align:center;padding:60px;color:#9ca3af">Nessuna foto documento allegata</div>` : ""}
+</body></html>`;
+}
+
 function Lightbox({ src, tipo, onClose }: { src: string; tipo: string; onClose: () => void }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.95)", zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -1117,6 +1147,7 @@ export default function Dashboard() {
                   <button style={btn("#f59e0b", "#fff")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupModifica(s); }}>✏️ Modifica</button>
                   <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                   <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
+                  <button style={btn("#0891b2")} onClick={async () => { const s = await caricaFotoScheda(scheda); const win = window.open("","_blank"); if(win){win.document.write(buildDocumentiHtml(s));win.document.close();setTimeout(()=>{win.focus();win.print();},600);} }}>🪪 Stampa Doc.</button>
                   <button style={btn("#059669")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupOggetti(s); }}>📦 Oggetti</button>
                   <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
                   <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>

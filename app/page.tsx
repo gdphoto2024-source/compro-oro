@@ -710,103 +710,185 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
   }
 
   // Dopo conferma privacy → salva tutto
-  function stampaPDFDopoSalvataggio(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }, numScheda: number) {
+  function buildSchedaHTML(numScheda: number, privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) {
     const dataOra = new Date(dataOperazione).toLocaleDateString("it-IT");
     const pesoAuTot = items.filter(i => i.materiale === "oro").reduce((a, i) => a + i.pesiPezzi.reduce((b, p) => b + Number(p||0), 0), 0);
     const pesoAgTot = items.filter(i => i.materiale === "argento").reduce((a, i) => a + i.pesiPezzi.reduce((b, p) => b + Number(p||0), 0), 0);
-    const oggettiDesc = items.filter(i => i.descrizione).map((o, i) =>
-      `${i+1}. ${o.descrizione}${o.materiale === "oro" ? " (AU)" : " (AG)"}  –  ${currency(o.valore)}`
-    ).join("<br>");
-    const c1 = privacyDati.consenso1 ? "SI" : "NO";
-    const c2 = privacyDati.consenso2 ? "SI" : "NO";
-    const c3 = privacyDati.consenso3 ? "SI" : "NO";
-
+    const oggettiRows = items.filter(i => i.descrizione).map((o, idx) => {
+      const peso = o.pesiPezzi.reduce((a, p) => a + Number(p||0), 0);
+      return `<tr>
+        <td style="font-weight:700">${idx+1}. ${o.descrizione}</td>
+        <td style="text-align:center">${o.nrArticoli} pz</td>
+        <td style="text-align:center">${o.materiale === "oro" ? "🟡 AU" : "⚪ AG"}</td>
+        <td style="text-align:center">${peso.toFixed(2)} g</td>
+        <td style="text-align:right;font-weight:700">${currency(o.valore)}</td>
+      </tr>`;
+    }).join("");
     const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
     const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
     const firmaClienteB64 = firmaDataUrl ? firmaDataUrl.split(",")[1] || firmaDataUrl : "";
     const firmaRicevutaB64 = firmaRicevutaDataUrl ? firmaRicevutaDataUrl.split(",")[1] || firmaRicevutaDataUrl : "";
-
-    const html = `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Scheda N° ${numScheda}</title>
+    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:50px;max-width:100px;object-fit:contain" alt="Logo">` : `<span style="font-size:16px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
+    return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Scheda N° ${numScheda}</title>
 <style>
-  @page { size: A4; margin: 10mm 12mm; }
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; padding: 0; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; border-bottom: 2px solid #111; padding-bottom: 8px; }
-  .logo-img { max-height: 60px; max-width: 120px; object-fit: contain; }
-  .negozio-info { font-size: 11px; line-height: 1.4; }
-  .titolo { font-size: 15px; font-weight: 800; text-align: center; margin: 8px 0 10px; text-transform: uppercase; letter-spacing: 1px; }
-  .scheda-num { font-size: 20px; font-weight: 900; text-align: right; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-  td, th { border: 1px solid #ccc; padding: 4px 7px; font-size: 12px; }
-  th { background: #f3f4f6; font-weight: 700; text-align: left; width: 160px; }
-  .section-title { font-size: 12px; font-weight: 800; text-transform: uppercase; color: #374151; margin: 10px 0 4px; border-bottom: 1px solid #e5e7eb; padding-bottom: 3px; }
-  .foto-row { display: flex; gap: 10px; margin: 6px 0; }
-  .foto-doc { max-height: 100px; max-width: 160px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; }
-  .firma-img { max-height: 60px; max-width: 200px; object-fit: contain; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; }
-  .consenso { font-size: 11px; margin: 2px 0; }
+  @page { size: A4 portrait; margin: 8mm 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; padding: 0; line-height: 1.3; }
+  .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #111; padding-bottom: 6px; margin-bottom: 6px; }
+  .hdr-info { font-size: 10px; line-height: 1.5; color: #444; margin-top: 3px; }
+  .scheda-num { font-size: 26px; font-weight: 900; color: #111; text-align: right; line-height: 1; }
+  .scheda-data { font-size: 11px; color: #444; text-align: right; }
+  .titolo { font-size: 13px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin: 5px 0; border: 1px solid #111; padding: 3px; }
+  .sec { font-size: 10px; font-weight: 900; text-transform: uppercase; color: #fff; background: #374151; padding: 3px 8px; margin: 5px 0 3px; letter-spacing: 1px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  td, th { border: 0.5px solid #bbb; padding: 3px 6px; font-size: 11px; vertical-align: top; }
+  th { background: #f3f4f6; font-weight: 700; width: 130px; white-space: nowrap; }
+  .ogg-th { background: #374151; color: #fff; font-size: 10px; font-weight: 700; }
+  .totale-row td { font-weight: 900; font-size: 13px; background: #f9fafb; }
+  .firma-box { border: 0.5px solid #bbb; border-radius: 4px; padding: 3px 6px; display: inline-block; }
+  .firma-img { max-height: 45px; max-width: 160px; object-fit: contain; display: block; }
+  .dichiarazione { font-size: 9.5px; line-height: 1.5; border: 0.5px solid #bbb; padding: 5px 8px; background: #fffef0; margin: 4px 0; }
+  .two-col { display: flex; gap: 8px; }
+  .two-col > div { flex: 1; }
+  .foto-doc { max-height: 80px; max-width: 130px; object-fit: contain; border: 0.5px solid #ccc; border-radius: 4px; }
+  .consensi { font-size: 10px; }
+  .footer { font-size: 9px; color: #9ca3af; text-align: center; margin-top: 6px; border-top: 0.5px solid #e5e7eb; padding-top: 4px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style></head><body>
-<div class="header">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div>${logoHtml}<div class="hdr-info">${negozio?.indirizzo || ""} — ${negozio?.comune || ""} (${negozio?.provincia || ""})<br>P.IVA: ${negozio?.piva || ""} | Tel: ${negozio?.telefono || ""}</div></div>
+  <div><div class="scheda-num">N° ${numScheda}</div><div class="scheda-data">${dataOra}</div></div>
+</div>
+
+<div class="titolo">Scheda Cessione Beni Usati</div>
+
+<!-- CLIENTE + DOCUMENTO su 2 colonne -->
+<div class="two-col">
   <div>
-    ${negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" class="logo-img" alt="Logo">` : `<span style="font-size:18px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`}
-    <div class="negozio-info" style="margin-top:4px">
-      ${negozio?.indirizzo || ""} — ${negozio?.comune || ""} (${negozio?.provincia || ""}) ${negozio?.cap || ""}<br>
-      P.IVA: ${negozio?.piva || ""} | Tel: ${negozio?.telefono || ""} | ${negozio?.email || ""}
+    <div class="sec">👤 Dati Cliente</div>
+    <table>
+      <tr><th>Cognome e Nome</th><td><strong>${customer.cognome} ${customer.nome}</strong></td></tr>
+      <tr><th>Nato/a a</th><td>${customer.luogoNascita}${customer.dataNascita ? " il " + new Date(customer.dataNascita).toLocaleDateString("it-IT") : ""}</td></tr>
+      <tr><th>Residenza</th><td>${customer.indirizzo}${customer.comune ? ", " + customer.comune : ""}${customer.provincia ? " (" + customer.provincia + ")" : ""}${customer.cap ? " " + customer.cap : ""}</td></tr>
+      <tr><th>Cod. Fiscale</th><td style="font-family:monospace;font-weight:700">${customer.codiceFiscale}</td></tr>
+      ${customer.telefono ? `<tr><th>Telefono</th><td>${customer.telefono}</td></tr>` : ""}
+    </table>
+  </div>
+  <div>
+    <div class="sec">🪪 Documento Identità</div>
+    <table>
+      <tr><th>Tipo</th><td>${customer.tipoDocumento}</td></tr>
+      <tr><th>Numero</th><td style="font-family:monospace;font-weight:700">${customer.numeroDocumento}</td></tr>
+      <tr><th>Rilasciato da</th><td>${customer.enteRilascio}</td></tr>
+      <tr><th>Data rilascio</th><td>${customer.dataRilascio ? new Date(customer.dataRilascio).toLocaleDateString("it-IT") : "—"}</td></tr>
+      <tr><th>Scadenza</th><td>${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}</td></tr>
+    </table>
+    ${(fotoFronteB64 || fotoRetroB64) ? `<div style="display:flex;gap:6px;margin-top:4px">${fotoFronteB64 ? `<img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-doc" alt="Fronte">` : ""}${fotoRetroB64 ? `<img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-doc" alt="Retro">` : ""}</div>` : ""}
+  </div>
+</div>
+
+<!-- OGGETTI -->
+<div class="sec">📦 Oggetti Ceduti</div>
+<table>
+  <tr><th class="ogg-th">Descrizione</th><th class="ogg-th" style="width:50px">Pezzi</th><th class="ogg-th" style="width:60px">Tipo</th><th class="ogg-th" style="width:70px">Peso</th><th class="ogg-th" style="width:80px">Valore</th></tr>
+  ${oggettiRows}
+  <tr class="totale-row">
+    <td colspan="3">TOTALE — ${mezzoPagamento.toUpperCase()}${croTrn ? " | CRO/TRN: " + croTrn : ""}</td>
+    <td>${pesoAuTot > 0 ? pesoAuTot.toFixed(2) + "g AU" : ""}${pesoAgTot > 0 ? (pesoAuTot > 0 ? " / " : "") + pesoAgTot.toFixed(2) + "g AG" : ""}</td>
+    <td style="text-align:right;font-size:14px">${currency(totale)}</td>
+  </tr>
+</table>
+
+<!-- DICHIARAZIONE + FIRME su 2 colonne -->
+<div class="two-col" style="margin-top:4px">
+  <div>
+    <div class="sec">✍️ Dichiarazione</div>
+    <div class="dichiarazione">
+      Il/La sottoscritto/a <strong>${customer.cognome} ${customer.nome}</strong> dichiara che:<br>
+      • gli oggetti sono di sua esclusiva proprietà e liberi da vincoli;<br>
+      • autorizza il trattamento dati personali (GDPR 2016/679);<br>
+      • prende atto che gli oggetti saranno ceduti a <strong>Plus Valenza Srl</strong>, Valenza (AL).
+    </div>
+    <div style="margin-top:4px">
+      <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Cliente:</div>
+      ${firmaClienteB64 ? `<img src="data:image/png;base64,${firmaClienteB64}" class="firma-img">` : "<div style='height:40px;border:0.5px dashed #ccc'></div>"}
     </div>
   </div>
   <div>
-    <div class="scheda-num">N° ${numScheda}</div>
-    <div style="font-size:12px;text-align:right">${dataOra}</div>
+    <div class="sec">🧾 Ricevuta Pagamento</div>
+    <div class="dichiarazione">
+      Il cliente firma per ricevuta della presente scheda e conferma di aver ricevuto <strong>${currency(totale)}</strong> mediante <strong>${mezzoPagamento}</strong>${croTrn ? " (CRO/TRN: " + croTrn + ")" : ""}.
+    </div>
+    <div style="margin-top:4px">
+      <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Ricevuta:</div>
+      ${firmaRicevutaB64 ? `<img src="data:image/png;base64,${firmaRicevutaB64}" class="firma-img">` : "<div style='height:40px;border:0.5px dashed #ccc'></div>"}
+    </div>
+    ${negozio?.firma_base64 ? `<div style="margin-top:6px"><div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Titolare:</div><img src="data:image/png;base64,${negozio.firma_base64}" class="firma-img"></div>` : ""}
   </div>
 </div>
 
-<div class="titolo">Scheda Acquisto Beni Usati</div>
-
-<div class="section-title">Dati Cliente</div>
-<table>
-  <tr><th>Cognome e Nome</th><td>${customer.cognome} ${customer.nome}</td><th>Cod. Fiscale</th><td>${customer.codiceFiscale}</td></tr>
-  <tr><th>Nato/a a</th><td>${customer.luogoNascita}</td><th>Data nascita</th><td>${customer.dataNascita ? new Date(customer.dataNascita).toLocaleDateString("it-IT") : ""}</td></tr>
-  <tr><th>Indirizzo</th><td colspan="3">${customer.indirizzo}, ${customer.cap} ${customer.comune} (${customer.provincia})</td></tr>
-  <tr><th>Telefono</th><td>${customer.telefono}</td><th>Email</th><td>${customer.email}</td></tr>
-</table>
-
-<div class="section-title">Documento di Identità</div>
-<table>
-  <tr><th>Tipo</th><td>${customer.tipoDocumento}</td><th>Numero</th><td>${customer.numeroDocumento}</td></tr>
-  <tr><th>Rilasciato da</th><td>${customer.enteRilascio}</td><th>Rilascio / Scadenza</th><td>${customer.dataRilascio ? new Date(customer.dataRilascio).toLocaleDateString("it-IT") : ""} / ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : ""}</td></tr>
-</table>
-${(fotoFronteB64 || fotoRetroB64) ? `<div class="foto-row">${fotoFronteB64 ? `<img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-doc" alt="Fronte">` : ""}${fotoRetroB64 ? `<img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-doc" alt="Retro">` : ""}</div>` : ""}
-
-<div class="section-title">Oggetti Ceduti</div>
-<table>
-  <tr><th>Descrizione</th><td>${oggettiDesc || "—"}</td></tr>
-  <tr><th>Peso AU totale</th><td>${pesoAuTot > 0 ? pesoAuTot + " g" : "—"}</td><th>Peso AG totale</th><td style="border:1px solid #ccc;padding:4px 7px">${pesoAgTot > 0 ? pesoAgTot + " g" : "—"}</td></tr>
-  <tr><th>Totale pagato</th><td colspan="3" style="font-size:14px;font-weight:800">${currency(totale)}</td></tr>
-  <tr><th>Mezzo pagamento</th><td>${mezzoPagamento}${croTrn ? " — CRO/TRN: " + croTrn : ""}</td><th>Note</th><td>${noteOperazione || "—"}</td></tr>
-</table>
-
-<div class="section-title">Firma Cliente</div>
-${firmaClienteB64 ? `<img src="data:image/png;base64,${firmaClienteB64}" class="firma-img" alt="Firma">` : "<p style='font-style:italic;color:#9ca3af'>Non acquisita</p>"}
-
-<div class="section-title">Privacy — Consensi</div>
-<div class="consenso">1. Trattamento dati: <strong>${c1}</strong></div>
-<div class="consenso">2. Comunicazioni commerciali proprie: <strong>${c2}</strong></div>
-<div class="consenso">3. Comunicazioni soggetti terzi: <strong>${c3}</strong></div>
-<div style="margin-top:4px;display:flex;gap:16px">
-  ${privacyDati.firma1 ? `<div><div style="font-size:10px;color:#6b7280">Firma 1</div><img src="data:image/png;base64,${privacyDati.firma1}" class="firma-img" alt="Firma privacy"></div>` : ""}
+<!-- PRIVACY CONSENSI -->
+<div class="sec">🔒 Privacy</div>
+<div class="consensi" style="display:flex;gap:16px">
+  <span>1. Trattamento dati: <strong>${privacyDati.consenso1 ? "✅ SI" : "❌ NO"}</strong></span>
+  <span>2. Comunicazioni: <strong>${privacyDati.consenso2 ? "✅ SI" : "❌ NO"}</strong></span>
+  <span>3. Soggetti terzi: <strong>${privacyDati.consenso3 ? "✅ SI" : "❌ NO"}</strong></span>
 </div>
 
-${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img src="data:image/png;base64,${negozio.firma_base64}" class="firma-img" alt="Firma titolare">` : ""}
-
-<p style="font-size:10px;color:#9ca3af;margin-top:14px;text-align:center">
-  SCHEDA ACQUISTO — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generata il ${new Date().toLocaleDateString("it-IT")}
-</p>
+<div class="footer">Scheda N° ${numScheda} — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — ${new Date().toLocaleDateString("it-IT")}</div>
 </body></html>`;
+  }
 
-    const win = window.open("", "_blank");
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-      setTimeout(() => { win.focus(); win.print(); }, 800);
+  function buildDocumentiHTML(numScheda: number) {
+    const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
+    const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
+    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:50px;object-fit:contain" alt="Logo">` : `<span style="font-size:16px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
+    return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Documenti N° ${numScheda}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+  .hdr { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 12px; }
+  .titolo { font-size: 14px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; }
+  .foto-section { margin-bottom: 20px; }
+  .foto-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 8px; letter-spacing: 1px; }
+  .foto-grande { width: 100%; max-height: 340px; object-fit: contain; border: 1px solid #ccc; border-radius: 8px; display: block; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+<div class="hdr">
+  <div>${logoHtml}</div>
+  <div style="text-align:right"><strong>Scheda N° ${numScheda}</strong><br>${new Date(dataOperazione).toLocaleDateString("it-IT")}</div>
+</div>
+<div class="titolo">Documenti di Identità</div>
+<div class="info-box">
+  <strong>${customer.cognome} ${customer.nome}</strong> — CF: ${customer.codiceFiscale || "—"}<br>
+  ${customer.tipoDocumento} N° ${customer.numeroDocumento} — Scadenza: ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}
+</div>
+${fotoFronteB64 ? `<div class="foto-section"><div class="foto-label">📄 Fronte documento</div><img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-grande" alt="Fronte"></div>` : ""}
+${fotoRetroB64 ? `<div class="foto-section"><div class="foto-label">📄 Retro documento</div><img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-grande" alt="Retro"></div>` : ""}
+${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;color:#9ca3af">Nessuna foto documento allegata</div>` : ""}
+</body></html>`;
+  }
+
+  function stampaPDFDopoSalvataggio(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }, numScheda: number, isNuovoCliente: boolean) {
+    // Foglio 1: Scheda (sempre)
+    const winScheda = window.open("", "_blank");
+    if (winScheda) {
+      winScheda.document.write(buildSchedaHTML(numScheda, privacyDati));
+      winScheda.document.close();
+      setTimeout(() => { winScheda.focus(); winScheda.print(); }, 800);
+    }
+    // Foglio 2 e 3: solo nuovo cliente
+    if (isNuovoCliente) {
+      const hasFotoDoc = fotoDocumento.some(f => f.nome.startsWith("fronte_") || f.nome.startsWith("retro_"));
+      if (hasFotoDoc) {
+        setTimeout(() => {
+          const winDoc = window.open("", "_blank");
+          if (winDoc) { winDoc.document.write(buildDocumentiHTML(numScheda)); winDoc.document.close(); setTimeout(() => { winDoc.focus(); winDoc.print(); }, 800); }
+        }, 1500);
+      }
     }
   }
 
@@ -916,7 +998,7 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
       setStatus({ text: `✅ Scheda n° ${numeroScheda} salvata! Apertura stampa...`, type: "success" });
       const numAttuale = numeroScheda || 1;
       setNumeroScheda(prev => (prev || 0) + 1);
-      setTimeout(() => stampaPDFDopoSalvataggio(privacyDati, numAttuale), 300);
+      setTimeout(() => stampaPDFDopoSalvataggio(privacyDati, numAttuale, !clienteSelezionato), 300);
     } catch (e: any) {
       console.error(e);
       setStatus({ text: `❌ Errore: ${e.message}`, type: "error" });
