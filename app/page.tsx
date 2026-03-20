@@ -585,19 +585,47 @@ export default function SchedaAcquisti() {
         content.push({ type: "image", source: { type: "base64", media_type: mt, data: b64 } });
         content.push({ type: "text", text: "Questo è il RETRO del documento di identità." });
       }
-      content.push({ type: "text", text: `Sei un sistema OCR esperto in documenti di identità italiani (CIE, patente, passaporto).
-Analizza ATTENTAMENTE tutte le immagini fornite ed estrai ogni dato leggibile.
+      content.push({ type: "text", text: `Sei un sistema OCR specializzato ESCLUSIVAMENTE in documenti di identità italiani. Il tuo compito è estrarre dati con la massima precisione possibile.
 
-ISTRUZIONI PRECISE:
-- Carta d'identità italiana (CIE): sul FRONTE trovi cognome, nome, luogo/data nascita, sesso, cittadinanza, indirizzo, comune, CF (in basso a destra o nel chip), numero documento (in alto a destra es. CA00000AA). Sul RETRO trovi scadenza, ente rilascio, e spesso il CF in formato MRZ (ultima riga dopo <<).
-- Patente: numero patente in alto, nome/cognome, data nascita, indirizzo, scadenza, ente.
-- Passaporto: dati nella zona MRZ (ultime 2 righe): cognome<<nome, numero passaporto, CF, data nascita, scadenza.
-- Codice Fiscale: SEMPRE 16 caratteri alfanumerici. Trovalo nella zona MRZ o stampato esplicitamente. Non inventarlo.
-- Date: converti SEMPRE in formato YYYY-MM-DD. Es: "15 MAR 1990" → "1990-03-15", "15/03/90" → "1990-03-15".
-- Numero documento: es. CA12345BC (CIE), oppure AA1234567 (passaporto), oppure TO1234567A (patente).
-- Se un dato non è leggibile o non esiste, lascia stringa vuota "". NON inventare dati.
+IDENTIFICA PRIMA IL TIPO DI DOCUMENTO osservando le immagini, poi applica le regole specifiche:
 
-Rispondi SOLO con questo JSON valido (nessun testo prima o dopo, nessun markdown):
+━━━ CARTA D'IDENTITÀ ITALIANA (CIE) — ELETTRONICA (dal 2016) ━━━
+FRONTE: In alto a destra il NUMERO documento (formato: AA 00000 AA, es. CA 12345 BC — 2 lettere, 5 cifre, 2 lettere).
+Sotto trovi in ordine: COGNOME, NOME, LUOGO DI NASCITA, DATA DI NASCITA, SESSO, STATURA, CITTADINANZA.
+In basso: INDIRIZZO di residenza, COMUNE, e il CODICE FISCALE (16 caratteri).
+RETRO: DATA DI SCADENZA (in alto), ENTE CHE HA RILASCIATO (es. "COMUNE DI TORINO"), e la striscia MRZ in fondo.
+Dalla MRZ (2 righe da 30 caratteri): riga 1 inizia con IDITA, riga 2 ha data nascita (AAMMGG), scadenza, CF.
+
+━━━ CARTA D'IDENTITÀ ITALIANA — CARTACEA VECCHIO TIPO (prima 2016) ━━━
+Formato orizzontale o verticale, con foto incollata. Dati scritti a mano o stampati.
+NUMERO: in genere inizia con lettere seguite da numeri (es. TO1234567).
+Cerca: cognome, nome, luogo e data di nascita, residenza, data rilascio, data scadenza, comune che ha rilasciato.
+Il CODICE FISCALE potrebbe essere assente — non inventarlo.
+
+━━━ PATENTE DI GUIDA ITALIANA ━━━
+FRONTE: In alto "UNIONE EUROPEA — ITALIA — PATENTE DI GUIDA".
+Campo 1: COGNOME. Campo 2: NOME. Campo 3: DATA NASCITA (GG.MM.AAAA) / luogo nascita.
+Campo 4a: DATA RILASCIO. Campo 4b: DATA SCADENZA. Campo 4c: ENTE RILASCIO (es. MIT — UMC TORINO).
+Campo 5: NUMERO PATENTE (es. TO0123456A).
+Il CODICE FISCALE non è sulla patente — lascia vuoto se non visibile.
+
+━━━ PASSAPORTO ITALIANO ━━━
+Dati nella pagina dati. MRZ in fondo (2 righe da 44 caratteri).
+Riga MRZ 1: P<ITA seguito da COGNOME<<NOME.
+Riga MRZ 2: NUMERO(9) + ITA + DATANASCITA(AAMMGG) + SESSO + SCADENZA(AAMMGG) + CF(16 caratteri) + cifre.
+
+━━━ REGOLE UNIVERSALI ━━━
+DATE: Converti SEMPRE in YYYY-MM-DD.
+  "15 MAR 1990" → "1990-03-15"
+  "15/03/1990" → "1990-03-15"
+  "15.03.90" → "1990-03-15"
+  "150390" (MRZ) → "1990-03-15"
+CODICE FISCALE: esattamente 16 caratteri (6 lettere + 2 cifre + 1 lettera + 2 cifre + 1 lettera + 3 cifre/lettere + 1 lettera). Se non sei sicuro al 100%, lascia vuoto.
+INDIRIZZO: separa via/piazza dal comune. Es: indirizzo="Via Roma 1", comune="Torino", provincia="TO".
+NON INVENTARE MAI dati non visibili. Se non leggibile → stringa vuota "".
+tipoDocumento: usa ESATTAMENTE "Carta di identità" oppure "Patente di guida" oppure "Passaporto".
+
+Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun commento):
 {
   "nome": "",
   "cognome": "",
@@ -625,7 +653,7 @@ Rispondi SOLO con questo JSON valido (nessun testo prima o dopo, nessun markdown
           "anthropic-version": "2023-06-01",
           "anthropic-dangerous-direct-browser-access": "true",
         },
-        body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 1000, messages: [{ role: "user", content }] })
+        body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 2000, messages: [{ role: "user", content }] })
       });
       if (!response.ok) { const err = await response.json(); throw new Error(err?.error?.message || "Errore API Claude"); }
       const data = await response.json();
