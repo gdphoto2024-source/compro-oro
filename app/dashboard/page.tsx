@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 function NavBar() {
@@ -34,6 +34,10 @@ function NavBar() {
           </a>
         );
       })}
+      <button
+        style={{ marginLeft: "auto", background: "#dc2626", color: "#fff", border: "none", borderRadius: 7, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }}
+        onClick={async () => { await fetch("/api/logout", { method: "POST" }); window.location.href = "/login"; }}
+      >🚪 Logout</button>
     </nav>
   );
 }
@@ -41,6 +45,7 @@ function NavBar() {
 
 type Scheda = {
   id: number;
+  cliente_id: number;
   numero_scheda: number;
   data_operazione: string;
   mezzo_pagamento: string;
@@ -79,9 +84,21 @@ function formatDate(d: string) {
 }
 
 function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
-  // Solo firme — NO foto documento, NO foto oggetti, NO privacy
+  const fotoFronte = scheda.foto.find(f => f.tipo === "documento_fronte");
+  const fotoRetro = scheda.foto.find(f => f.tipo === "documento_retro");
   const firmaCliente = scheda.foto.find(f => f.tipo === "firma_cliente");
   const firmaRicevuta = scheda.foto.find(f => f.tipo === "firma_ricevuta");
+  const firmaPrivacy = scheda.foto.find(f => f.tipo === "firma_privacy");
+  const firmaPrivacy2 = scheda.foto.find(f => f.tipo === "firma_privacy2");
+  const firmaPrivacy3 = scheda.foto.find(f => f.tipo === "firma_privacy3");
+  const fotoOggetti = scheda.foto.filter(f => f.tipo.startsWith("oggetto_"));
+
+  // Estrai consensi dalle note
+  const noteOp = scheda.note_operazione || "";
+  const matchConsenso = noteOp.match(/PRIVACY: consenso1=(SI|NO) consenso2=(SI|NO) consenso3=(SI|NO)/);
+  const c1 = matchConsenso ? matchConsenso[1] : null;
+  const c2 = matchConsenso ? matchConsenso[2] : null;
+  const c3 = matchConsenso ? matchConsenso[3] : null;
 
   const dataOra = scheda.data_operazione
     ? new Date(scheda.data_operazione).toLocaleDateString("it-IT")
@@ -91,13 +108,8 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
   const pesoAgTot = scheda.oggetti.reduce((a, o) => a + (o.peso_ag || 0), 0);
 
   const oggettiDesc = scheda.oggetti.map((o, i) =>
-    `${i+1}. ${o.descrizione || ""}${o.materiale === "oro" ? " (AU)" : " (AG)"}  –  peso AU: ${o.peso_au || 0}g / AG: ${o.peso_ag || 0}g  –  ${currency(o.valore)}`
+    `${i+1}. ${o.descrizione || ""}${o.materiale === "oro" ? " (AU)" : " (AG)"}  –  ${currency(o.valore)}`
   ).join("<br>");
-
-  // Titolo negozio per header
-  const titoloNegozio = negozio?.nome
-    ? `SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI — ${negozio.nome} — P.IVA ${negozio.piva || ""}`
-    : "SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI";
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -106,93 +118,70 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
 <title>Scheda N° ${scheda.numero_scheda}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #000; background: #fff; padding: 20px 28px; }
-
-  /* TITOLO IN CIMA */
-  .intestazione-titolo {
-    text-align: center;
-    font-size: 13px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    border: 2px solid #000;
-    border-radius: 6px;
-    padding: 10px 16px;
-    margin-bottom: 14px;
-    background: #f8f8f8;
-  }
-
-  /* TOP BAR con logo + data + numero scheda */
-  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 14px; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #000; background: #fff; padding: 28px 36px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
   .top-bar-left { font-size: 12px; }
-  .top-bar-scheda { font-size: 16px; font-weight: 800; }
-  .logo-img { max-height: 50px; max-width: 130px; object-fit: contain; }
-
-  .riga { display: flex; gap: 0; border-bottom: 1px solid #ccc; padding: 5px 0; align-items: baseline; }
+  .top-bar-scheda { font-size: 15px; font-weight: 800; }
+  .logo-img { max-height: 55px; max-width: 150px; object-fit: contain; }
+  .riga { display: flex; gap: 0; border-bottom: 1px solid #ccc; padding: 6px 0; align-items: baseline; }
   .riga label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #555; min-width: 130px; }
-  .riga span { font-size: 12px; font-weight: 500; flex: 1; border-bottom: 1px dotted #aaa; min-height: 17px; padding-left: 6px; }
-  .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #000; background: #f0f0f0; padding: 5px 10px; margin: 12px 0 7px; border-left: 4px solid #000; }
-
-  .vende-a-box { border: 2px solid #000; border-radius: 6px; padding: 10px 14px; margin: 8px 0 12px; background: #fafafa; }
-  .vende-a-title { font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: center; margin-bottom: 6px; letter-spacing: 0.1em; }
+  .riga span { font-size: 12px; font-weight: 500; flex: 1; border-bottom: 1px dotted #aaa; min-height: 18px; padding-left: 6px; }
+  .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #000; background: #f0f0f0; padding: 6px 10px; margin: 14px 0 8px; border-left: 4px solid #000; }
+  .vende-a-box { border: 2px solid #000; border-radius: 6px; padding: 12px 16px; margin: 10px 0 14px; background: #fafafa; }
+  .vende-a-title { font-size: 12px; font-weight: 800; text-transform: uppercase; text-align: center; margin-bottom: 8px; letter-spacing: 0.1em; }
   .vende-a-nome { font-size: 14px; font-weight: 800; text-align: center; }
-  .vende-a-info { font-size: 11px; text-align: center; color: #333; margin-top: 3px; }
-
-  .oggetti-box { border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 60px; margin-bottom: 8px; font-size: 12px; line-height: 1.8; }
-  .riepilogo-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 8px 0; }
-  .riepilogo-field { border: 1px solid #ccc; border-radius: 4px; padding: 5px 8px; }
+  .vende-a-info { font-size: 11px; text-align: center; color: #333; margin-top: 4px; }
+  .oggetti-box { border: 1px solid #ccc; border-radius: 4px; padding: 10px; min-height: 80px; margin-bottom: 10px; font-size: 12px; line-height: 1.8; }
+  .riepilogo-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
+  .riepilogo-field { border: 1px solid #ccc; border-radius: 4px; padding: 6px 10px; }
   .riepilogo-field label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #555; display: block; }
   .riepilogo-field span { font-size: 13px; font-weight: 800; }
-
-  /* DICHIARAZIONE senza dati personali ripetuti */
-  .dichiarazione { border: 1.5px solid #000; border-radius: 6px; padding: 12px 14px; margin: 12px 0; font-size: 12px; line-height: 1.8; background: #fffef0; }
-
-  /* FIRME più piccole */
-  .firme-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 14px; }
-  .firma-box { border: 1px solid #ccc; border-radius: 6px; padding: 8px; text-align: center; }
-  .firma-img { height: 45px; object-fit: contain; display: block; margin: 0 auto; }
-  .firma-label { font-size: 9px; color: #555; margin-top: 4px; text-align: center; font-weight: 700; text-transform: uppercase; }
-  .firma-linea { border-bottom: 1px solid #999; min-height: 38px; margin-bottom: 3px; }
-
-  .plus-valenza { margin-top: 12px; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; color: #333; text-align: center; }
-
-  @media print {
-    body { padding: 8px 16px; }
-    .no-print { display: none !important; }
-  }
+  .dichiarazione { border: 1.5px solid #000; border-radius: 6px; padding: 14px 16px; margin: 14px 0; font-size: 12px; line-height: 1.8; background: #fffef0; }
+  .foto-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+  .foto-doc { width: 160px; border-radius: 6px; border: 1px solid #ccc; }
+  .foto-ogg { width: 90px; height: 90px; object-fit: cover; border-radius: 6px; border: 1px solid #ccc; }
+  .firme-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .firma-box { border: 1.5px solid #ccc; border-radius: 6px; padding: 10px; text-align: center; }
+  .firma-img { height: 65px; object-fit: contain; display: block; margin: 0 auto; }
+  .firma-label { font-size: 9px; color: #555; margin-top: 6px; text-align: center; font-weight: 700; text-transform: uppercase; }
+  .firma-linea { border-bottom: 1px solid #999; min-height: 50px; margin-bottom: 4px; }
+  .privacy-badge { background: #d1fae5; border: 1px solid #059669; border-radius: 6px; padding: 6px 12px; font-size: 13px; color: #065f46; margin-bottom: 10px; }
+  @media print { body { padding: 10px 20px; } .no-print { display: none !important; } }
 </style>
 </head>
 <body>
 
-<!-- TITOLO PRINCIPALE IN CIMA -->
-<div class="intestazione-titolo">
-  ${titoloNegozio}
-</div>
-
-<!-- TOP BAR: logo / data-ora / numero scheda -->
+<!-- TOP BAR -->
 <div class="top-bar">
   <div class="top-bar-left">
-    ${negozio?.logo_base64
-      ? `<img src="data:image/png;base64,${negozio.logo_base64}" class="logo-img" alt="Logo">`
-      : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`}
+    ${negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" class="logo-img" alt="Logo">` : `<span style="font-size:18px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`}
   </div>
   <div style="text-align:center">
     <div style="font-size:12px">${negozio?.comune || "TORINO"} &nbsp;&nbsp; <strong>${dataOra}</strong></div>
     <div style="font-size:11px;color:#555">Ora: ${new Date().toLocaleTimeString("it-IT", {hour:"2-digit",minute:"2-digit"})}</div>
   </div>
   <div style="text-align:right">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#555">Scheda N°</div>
-    <div class="top-bar-scheda">${scheda.numero_scheda}</div>
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#555">Scheda Acquisto</div>
+    <div class="top-bar-scheda">N° ${scheda.numero_scheda}</div>
   </div>
 </div>
 
 <!-- DATI CLIENTE -->
 <div class="section-title">Il Sottoscritto</div>
 <div class="riga"><label>Cognome e Nome</label><span>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</span></div>
-<div class="riga"><label>Nato a</label><span>${scheda.cliente?.luogo_nascita || "—"}</span><label style="min-width:60px;margin-left:16px">il</label><span>${formatDate(scheda.cliente?.data_nascita || "") || "—"}</span></div>
-<div class="riga"><label>Residente in</label><span>${scheda.cliente?.indirizzo || "—"}</span><label style="min-width:20px;margin-left:8px">a</label><span>${scheda.cliente?.comune || "—"}${scheda.cliente?.provincia ? " (" + scheda.cliente.provincia + ")" : ""} ${scheda.cliente?.cap || ""}</span></div>
-<div class="riga"><label>Documento</label><span>${scheda.tipo_documento || "—"} &nbsp; nr. ${scheda.numero_documento || "—"}</span><label style="min-width:90px;margin-left:8px">Rilasciato da</label><span>${scheda.ente_rilascio || "—"}</span><label style="min-width:24px;margin-left:8px">il</label><span>${formatDate(scheda.data_rilascio) || "—"}</span></div>
-<div class="riga"><label>Scadenza</label><span>${formatDate(scheda.data_scadenza) || "—"}</span><label style="min-width:110px;margin-left:16px">Codice Fiscale</label><span>${scheda.cliente?.codice_fiscale || "—"}</span></div>
+<div class="riga"><label>Nato a</label><span>${scheda.cliente?.luogo_nascita || "—"}</span><label style="min-width:80px;margin-left:20px">il</label><span>${formatDate(scheda.cliente?.data_nascita || "") || "—"}</span></div>
+<div class="riga"><label>Residente in</label><span>${scheda.cliente?.indirizzo || "—"}</span><label style="min-width:30px;margin-left:10px">a</label><span>${scheda.cliente?.comune || "—"}${scheda.cliente?.provincia ? " (" + scheda.cliente.provincia + ")" : ""} ${scheda.cliente?.cap || ""}</span></div>
+<div class="riga"><label>Documento</label><span>${scheda.tipo_documento || "—"} &nbsp; nr. ${scheda.numero_documento || "—"}</span><label style="min-width:100px;margin-left:10px">Rilasciato da</label><span>${scheda.ente_rilascio || "—"}</span><label style="min-width:30px;margin-left:10px">il</label><span>${formatDate(scheda.data_rilascio) || "—"}</span></div>
+<div class="riga"><label>Scadenza</label><span>${formatDate(scheda.data_scadenza) || "—"}</span><label style="min-width:120px;margin-left:20px">Codice Fiscale</label><span>${scheda.cliente?.codice_fiscale || "—"}</span></div>
+
+${fotoFronte || fotoRetro ? `
+<div style="margin:10px 0">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:6px">Foto documento</div>
+  <div class="foto-row">
+    ${fotoFronte ? `<img src="data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}" class="foto-doc" alt="Fronte">` : ""}
+    ${fotoRetro ? `<img src="data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}" class="foto-doc" alt="Retro">` : ""}
+  </div>
+</div>` : ""}
 
 <!-- VENDE A -->
 <div class="vende-a-box">
@@ -210,6 +199,12 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
   ${oggettiDesc || "—"}
 </div>
 
+${fotoOggetti.length > 0 ? `
+<div style="margin:8px 0">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:6px">Foto oggetti</div>
+  <div class="foto-row">${fotoOggetti.map(f => `<img src="data:${f.mime_type};base64,${f.data_base64}" class="foto-ogg" alt="Oggetto">`).join("")}</div>
+</div>` : ""}
+
 <!-- RIEPILOGO -->
 <div class="riepilogo-row">
   <div class="riepilogo-field"><label>Peso AU (g)</label><span>${pesoAuTot || "—"}</span></div>
@@ -218,17 +213,24 @@ function buildPDFHtml(scheda: Scheda, negozio: Negozio | null): string {
   <div class="riepilogo-field"><label>Totale Valore</label><span>${currency(scheda.totale_valore)}</span></div>
 </div>
 ${scheda.cro_trn ? `<div class="riga"><label>CRO / TRN Bonifico</label><span>${scheda.cro_trn}</span></div>` : ""}
-${scheda.note_operazione && !scheda.note_operazione.startsWith("PRIVACY:") ? `<div class="riga"><label>Note</label><span>${scheda.note_operazione.replace(/\s*\|\s*PRIVACY:.*$/, "")}</span></div>` : ""}
+${scheda.note_operazione ? `<div class="riga"><label>Note</label><span>${scheda.note_operazione}</span></div>` : ""}
 
-<!-- DICHIARAZIONE (senza ripetere nome/dati già sopra) -->
+<!-- DICHIARAZIONE -->
 <div class="dichiarazione">
+  Il/La sottoscritto/a <strong>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</strong>,
+  nato/a a <strong>${scheda.cliente?.luogo_nascita || "___"}</strong> il <strong>${formatDate(scheda.cliente?.data_nascita || "") || "___"}</strong>,
+  residente in <strong>${scheda.cliente?.indirizzo || "___"}, ${scheda.cliente?.comune || "___"}</strong>,
+  identificato/a tramite <strong>${scheda.tipo_documento || "___"} n. ${scheda.numero_documento || "___"}</strong>,
+  <br><br>
   <strong>DICHIARA</strong> che l'oggetto/i sopraindicato/i è/sono di sua esclusiva proprietà
   e che sullo stesso/i non esistono vincoli, garanzie e/o pegni di qualsivoglia natura.
   <br><br>
   Autorizza inoltre il trattamento dei propri dati personali ai sensi del D.Lgs. 196/2003 e del GDPR 2016/679.
 </div>
 
-<!-- FIRME PICCOLE IN FONDO -->
+<!-- FIRME -->
+${firmaPrivacy ? `<div class="privacy-badge">✅ Informativa privacy accettata dal cliente in data ${formatDate(scheda.data_operazione)}</div>` : ""}
+
 <div class="firme-grid">
   <div class="firma-box">
     ${firmaCliente ? `<img src="data:image/png;base64,${firmaCliente.data_base64}" class="firma-img" alt="Firma venditore">` : `<div class="firma-linea"></div>`}
@@ -244,84 +246,73 @@ ${scheda.note_operazione && !scheda.note_operazione.startsWith("PRIVACY:") ? `<d
   </div>
 </div>
 
-<!-- PLUS VALENZA -->
-<div class="plus-valenza">
-  Tutti gli oggetti saranno ceduti per la fusione a <strong>Plus Valenza Srl</strong>,
-  Via dell&apos;Artigianato 99 Zona D3 &nbsp; 15048 Valenza (AL) &nbsp; P.Iva: 02134200068
+<div style="margin-top:16px;padding:10px 14px;border:1px solid #ccc;border-radius:4px;font-size:12px;color:#333;text-align:center">
+  Tutti gli oggetti saranno ceduti per la fusione a <strong>Plus Valenza Srl</strong>, Via dell&apos;Artigianato 99 Zona D3 &nbsp; 15048 Valenza (AL) &nbsp; P.Iva: 02134200068
+</div>
+<div style="margin-top:10px;padding-top:10px;border-top:1px solid #ccc;font-size:10px;color:#888;text-align:center">
+  SCHEDA PER CESSIONE DA PRIVATI DI BENI USATI — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generata il ${new Date().toLocaleDateString("it-IT")}
+</div>
+
+<!-- SECONDA PAGINA: PRIVACY -->
+<div style="page-break-before:always;padding-top:20px">
+
+  <div style="text-align:center;margin-bottom:20px">
+    <div style="font-size:22px;font-weight:800">${negozio?.nome || "GIOIE E ORO"}</div>
+    ${negozio?.indirizzo ? `<div style="font-size:14px;color:#555">${negozio.indirizzo}, ${negozio.comune}</div>` : ""}
+    <div style="font-size:18px;font-weight:700;margin-top:12px;text-transform:uppercase;letter-spacing:0.08em">Dichiarazione di Consenso</div>
+  </div>
+
+  <div style="font-size:15px;line-height:1.8;color:#222;border:1px solid #ccc;border-radius:8px;padding:16px;margin-bottom:20px">
+    L'interessato dichiara di aver ricevuto debita informativa ai sensi dell'art. 13 del Regolamento Generale UE sulla
+    protezione dei dati personali n. 679/2016, unitamente all'esposizione dei Diritti dell'Interessato ai sensi degli artt. 15, 16,
+    17, 18 e 20 del Regolamento medesimo.<br><br>
+    Esprime il pieno e libero consenso al trattamento dei dati personali e di categorie particolari di dati personali «dati sensibili»
+    per la fornitura dei servizi richiesti ed alla comunicazione degli stessi nei limiti, per le finalità e per la durata precisati nell'informativa.<br><br>
+    Le autorizzazioni potranno essere revocate in ogni momento rivolgendo richiesta al Titolare della Protezione dei Dati,
+    mediante lettera raccomandata all'indirizzo della ${negozio?.nome || "società"} o inviando una e-mail alla casella di posta elettronica ${negozio?.email || ""}.
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+    <div style="border:1px solid #ccc;border-radius:6px;padding:10px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#888">Data</div>
+      <div style="font-size:16px;font-weight:600">${formatDate(scheda.data_operazione)}</div>
+    </div>
+    <div style="border:1px solid #ccc;border-radius:6px;padding:10px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#888">Cognome e Nome</div>
+      <div style="font-size:16px;font-weight:600">${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</div>
+    </div>
+  </div>
+
+  ${["a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla società.",
+     "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario su prodotti o servizi offerti dalla " + (negozio?.nome || "società") + ".",
+     "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali e/o materiale pubblicitario di soggetti terzi (business partner)."]
+    .map((testo, i) => {
+      const firme = [firmaPrivacy, firmaPrivacy2, firmaPrivacy3];
+      const consensi = [c1, c2, c3];
+      const f = firme[i];
+      const c = consensi[i];
+      return `
+  <div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:16px">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:#6b7280;margin-bottom:8px">Consenso ${i+1}</div>
+    <p style="font-size:15px;line-height:1.6;color:#374151;margin-bottom:12px">${testo}</p>
+    <div style="display:flex;gap:24px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:${c==="SI"?"#059669":"#ccc"}">
+        <div style="width:18px;height:18px;border:2px solid ${c==="SI"?"#059669":"#ccc"};border-radius:3px;background:${c==="SI"?"#059669":"#fff"};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${c==="SI"?"✓":""}</div>
+        Acconsento
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;color:${c==="NO"?"#dc2626":"#ccc"}">
+        <div style="width:18px;height:18px;border:2px solid ${c==="NO"?"#dc2626":"#ccc"};border-radius:3px;background:${c==="NO"?"#dc2626":"#fff"};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${c==="NO"?"✓":""}</div>
+        Non Acconsento
+      </div>
+    </div>
+    ${f ? `<img src="data:${f.mime_type};base64,${f.data_base64}" style="height:60px;object-fit:contain;border:1.5px solid #059669;border-radius:8px;background:#fafafa;display:block">` : `<div style="border-bottom:1px solid #999;height:50px"></div>`}
+    <div style="font-size:11px;color:#9ca3af;margin-top:4px">Firma</div>
+  </div>`; }).join("")}
+
 </div>
 
 </body></html>`;
 }
-
-// ---- SECONDA PAGINA: DOCUMENTI CLIENTE ----
-function buildDocumentiHtml(scheda: Scheda, negozio: Negozio | null): string {
-  const fotoFronte = scheda.foto.find(f => f.tipo === "documento_fronte");
-  const fotoRetro = scheda.foto.find(f => f.tipo === "documento_retro");
-  // Include anche foto extra documento (tipo "documento" o "documento_extra_*")
-  const fotoExtra = scheda.foto.filter(f => f.tipo === "documento" || f.tipo.startsWith("documento_extra"));
-
-  return `<!DOCTYPE html>
-<html lang="it">
-<head>
-<meta charset="UTF-8">
-<title>Documenti — Scheda N° ${scheda.numero_scheda}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 14px; color: #000; background: #fff; padding: 30px 36px; }
-  .header { text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #000; }
-  .titolo { font-size: 20px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
-  .sottotitolo { font-size: 14px; color: #555; margin-top: 6px; }
-  .dati-cliente { border: 1px solid #ccc; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .dato label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #888; display: block; margin-bottom: 2px; }
-  .dato span { font-size: 14px; font-weight: 600; }
-  .foto-section { margin-bottom: 20px; }
-  .foto-label { font-size: 12px; font-weight: 800; text-transform: uppercase; color: #555; margin-bottom: 10px; letter-spacing: 0.08em; }
-  .foto-img { width: 100%; max-width: 480px; border: 1.5px solid #ccc; border-radius: 8px; display: block; margin: 0 auto; }
-  .nessuna-foto { border: 2px dashed #ddd; border-radius: 8px; padding: 30px; text-align: center; color: #aaa; font-size: 13px; }
-  @media print { body { padding: 12px 20px; } }
-</style>
-</head>
-<body>
-
-<div class="header">
-  <div class="titolo">DOCUMENTI</div>
-  <div class="sottotitolo">Scheda N° ${scheda.numero_scheda}</div>
-</div>
-
-<div class="dati-cliente">
-  <div class="dato"><label>Cognome e Nome</label><span>${scheda.cliente?.cognome || ""} ${scheda.cliente?.nome || ""}</span></div>
-  <div class="dato"><label>Codice Fiscale</label><span>${scheda.cliente?.codice_fiscale || "—"}</span></div>
-  <div class="dato"><label>Tipo Documento</label><span>${scheda.tipo_documento || "—"}</span></div>
-  <div class="dato"><label>N° Documento</label><span>${scheda.numero_documento || "—"}</span></div>
-  <div class="dato"><label>Rilasciato da</label><span>${scheda.ente_rilascio || "—"}</span></div>
-  <div class="dato"><label>Scadenza</label><span>${formatDate(scheda.data_scadenza) || "—"}</span></div>
-</div>
-
-${fotoFronte ? `
-<div class="foto-section">
-  <div class="foto-label">📄 Fronte Documento</div>
-  <img src="data:${fotoFronte.mime_type};base64,${fotoFronte.data_base64}" class="foto-img" alt="Fronte documento">
-</div>` : `<div class="nessuna-foto">Fronte documento non disponibile</div>`}
-
-${fotoRetro ? `
-<div class="foto-section">
-  <div class="foto-label">📄 Retro Documento</div>
-  <img src="data:${fotoRetro.mime_type};base64,${fotoRetro.data_base64}" class="foto-img" alt="Retro documento">
-</div>` : `<div class="nessuna-foto">Retro documento non disponibile</div>`}
-
-${fotoExtra.length > 0 ? fotoExtra.map((f, i) => `
-<div class="foto-section">
-  <div class="foto-label">📎 Allegato ${i + 1}</div>
-  <img src="data:${f.mime_type};base64,${f.data_base64}" class="foto-img" alt="Allegato ${i + 1}">
-</div>`).join("") : ""}
-
-<div style="margin-top:20px;padding-top:12px;border-top:1px solid #ccc;font-size:10px;color:#999;text-align:center">
-  Documento interno — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — Generato il ${new Date().toLocaleDateString("it-IT")}
-</div>
-
-</body></html>`;
-}
-
 function buildPrivacyHtml(scheda: Scheda, negozio: Negozio | null): string {
   const firmaPrivacy = scheda.foto.find(f => f.tipo === "firma_privacy");
   const firmaPrivacy2 = scheda.foto.find(f => f.tipo === "firma_privacy2");
@@ -457,6 +448,7 @@ function PopupOggetti({ scheda, onClose, onLightbox, onFotoAggiunta }: {
         r.onerror = rej;
         r.readAsDataURL(file);
       });
+      // Prossimo numero oggetto
       const nextNum = fotoLocali.filter(f => f.tipo.startsWith("oggetto_")).length + 1;
       const tipo = `oggetto_${nextNum}`;
       const { error } = await supabase.from("foto_scheda").insert({
@@ -517,6 +509,7 @@ ${righe.join("")}
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 760, width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
 
+        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>📦 Oggetti — Scheda N° {scheda.numero_scheda}</h2>
@@ -544,6 +537,7 @@ ${righe.join("")}
           </div>
         )}
 
+        {/* Lista oggetti */}
         <div style={{ marginBottom: 20 }}>
           {scheda.oggetti.map((o, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: "#f9fafb", borderRadius: 8, marginBottom: 8, border: "1px solid #e5e7eb" }}>
@@ -558,6 +552,7 @@ ${righe.join("")}
           ))}
         </div>
 
+        {/* Foto oggetti */}
         <div style={{ borderTop: "1.5px solid #e5e7eb", paddingTop: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "#6b7280", marginBottom: 12, letterSpacing: "0.08em" }}>
             Foto ({fotoLocali.length})
@@ -587,6 +582,282 @@ ${righe.join("")}
   );
 }
 
+function PopupModifica({ scheda, onClose, onSalvato }: { scheda: Scheda; onClose: () => void; onSalvato: (s: Scheda) => void }) {
+  const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 8, border: "1.5px solid #e5e7eb", fontSize: 14, width: "100%", boxSizing: "border-box" as const, background: "#fff" };
+  const DESCRIZIONI = ["Anello","Anello con pietre","Fede","Braccialetto","Braccialetto con pietre","Bracciale","Bracciale rigido","Bracciale multiplo","Bracciale con pietre","Bracciale con ciondoli","Collanina","Collanina con ciondoli","Collanina con pietre","Girocollo","Girocollo con pietre","Paia orecchini","Paia orecchini con pietre","Orecchino spaiato","Orecchino spaiato con pietre","Portachiavi","Fermacravatta","Spilla","Spilla con pietre","Spilla con ciondoli","Cassa fondello orologio","Cassa-fondello cinghietto orologio","Medaglia"];
+
+  const [op, setOp] = useState({
+    data_operazione: scheda.data_operazione || "",
+    mezzo_pagamento: scheda.mezzo_pagamento || "contanti",
+    cro_trn: scheda.cro_trn || "",
+    totale_valore: String(scheda.totale_valore || ""),
+    note_operazione: (scheda.note_operazione || "").replace(/\|?\s*PRIVACY:.*/, "").trim(),
+    tipo_documento: scheda.tipo_documento || "",
+    numero_documento: scheda.numero_documento || "",
+    data_rilascio: scheda.data_rilascio || "",
+    data_scadenza: scheda.data_scadenza || "",
+    ente_rilascio: scheda.ente_rilascio || "",
+  });
+  const [cliente, setCliente] = useState({
+    nome: scheda.cliente?.nome || "",
+    cognome: scheda.cliente?.cognome || "",
+    codice_fiscale: scheda.cliente?.codice_fiscale || "",
+    luogo_nascita: scheda.cliente?.luogo_nascita || "",
+    data_nascita: scheda.cliente?.data_nascita || "",
+    indirizzo: scheda.cliente?.indirizzo || "",
+    comune: scheda.cliente?.comune || "",
+    provincia: scheda.cliente?.provincia || "",
+    cap: scheda.cliente?.cap || "",
+    email: scheda.cliente?.email || "",
+  });
+  const [oggetti, setOggetti] = useState(scheda.oggetti.map(o => ({ ...o, peso: String(o.peso_au || o.peso_ag || ""), valore: String(o.valore || "") })));
+  const [fotoDoc, setFotoDoc] = useState(scheda.foto.filter(f => f.tipo === "documento_fronte" || f.tipo === "documento_retro" || f.tipo === "documento"));
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [tab, setTab] = useState<"operazione"|"cliente"|"oggetti"|"foto">("operazione");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [tipoFotoNuova, setTipoFotoNuova] = useState("documento_fronte");
+
+  async function aggiungiPhoto(file: File) {
+    const base64 = await new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res((r.result as string).split(",")[1]); r.onerror = rej; r.readAsDataURL(file); });
+    const { error } = await supabase.from("foto_scheda").insert({ operazione_id: scheda.id, tipo: tipoFotoNuova, nome_file: file.name, mime_type: file.type, data_base64: base64 });
+    if (!error) setFotoDoc(prev => [...prev, { tipo: tipoFotoNuova, data_base64: base64, mime_type: file.type }]);
+  }
+
+  async function salva() {
+    setSaving(true); setMsg("");
+    try {
+      const privacyNote = scheda.note_operazione?.match(/PRIVACY:.*/) ? " | " + scheda.note_operazione.match(/PRIVACY:.*/)?.[0] : "";
+      await supabase.from("operazioni").update({
+        data_operazione: op.data_operazione,
+        mezzo_pagamento: op.mezzo_pagamento,
+        cro_trn: op.cro_trn,
+        totale_valore: Number(op.totale_valore) || null,
+        note_operazione: op.note_operazione + privacyNote,
+        tipo_documento: op.tipo_documento,
+        numero_documento: op.numero_documento,
+        data_rilascio: op.data_rilascio || null,
+        data_scadenza: op.data_scadenza || null,
+        ente_rilascio: op.ente_rilascio,
+      }).eq("id", scheda.id);
+
+      if (scheda.cliente_id) {
+        await supabase.from("clienti").update({
+          nome: cliente.nome, cognome: cliente.cognome,
+          codice_fiscale: cliente.codice_fiscale || null,
+          luogo_nascita: cliente.luogo_nascita,
+          data_nascita: cliente.data_nascita || null,
+          indirizzo: cliente.indirizzo, comune: cliente.comune,
+          provincia: cliente.provincia, cap: cliente.cap, email: cliente.email,
+        }).eq("id", scheda.cliente_id);
+      }
+
+      setMsg("✅ Salvato!");
+      onSalvato({ ...scheda,
+        data_operazione: op.data_operazione, mezzo_pagamento: op.mezzo_pagamento,
+        cro_trn: op.cro_trn, totale_valore: Number(op.totale_valore),
+        note_operazione: op.note_operazione + privacyNote,
+        tipo_documento: op.tipo_documento, numero_documento: op.numero_documento,
+        data_rilascio: op.data_rilascio, data_scadenza: op.data_scadenza, ente_rilascio: op.ente_rilascio,
+        cliente: { ...scheda.cliente!, ...cliente },
+        foto: [...scheda.foto.filter(f => !["documento_fronte","documento_retro","documento"].includes(f.tipo)), ...fotoDoc],
+      });
+      setTimeout(() => onClose(), 1000);
+    } catch(e: any) { setMsg("❌ " + e.message); }
+    finally { setSaving(false); }
+  }
+
+  const tabStyle = (t: string): React.CSSProperties => ({
+    padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13, border: "none",
+    background: tab === t ? "#111827" : "#f3f4f6", color: tab === t ? "#fff" : "#374151",
+  });
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9500, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: 28, maxWidth: 800, width: "100%", maxHeight: "92vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.4)" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>✏️ Modifica Scheda N° {scheda.numero_scheda}</h2>
+            <p style={{ fontSize: 13, color: "#6b7280", margin: "4px 0 0" }}>{scheda.cliente?.cognome} {scheda.cliente?.nome}</p>
+          </div>
+          <button onClick={onClose} style={{ background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 700 }}>✕ Chiudi</button>
+        </div>
+
+        {/* Tab */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+          <button style={tabStyle("operazione")} onClick={() => setTab("operazione")}>📋 Operazione</button>
+          <button style={tabStyle("cliente")} onClick={() => setTab("cliente")}>👤 Cliente</button>
+          <button style={tabStyle("oggetti")} onClick={() => setTab("oggetti")}>📦 Oggetti</button>
+          <button style={tabStyle("foto")} onClick={() => setTab("foto")}>📷 Foto Documento</button>
+        </div>
+
+        {/* TAB OPERAZIONE */}
+        {tab === "operazione" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {([["Data operazione","data_operazione","date"],["Mezzo pagamento","mezzo_pagamento"],["CRO / TRN","cro_trn"],["Totale valore €","totale_valore"],["Tipo documento","tipo_documento"],["N° documento","numero_documento"],["Rilasciato da","ente_rilascio"],["Data rilascio","data_rilascio","date"],["Data scadenza","data_scadenza","date"]] as [string,string,string?][]).map(([label, field, type]) => (
+              <div key={field}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", marginBottom: 5 }}>{label}</div>
+                {field === "mezzo_pagamento" ? (
+                  <select style={inp} value={(op as any)[field]} onChange={e => setOp(p => ({ ...p, [field]: e.target.value }))}>
+                    <option value="contanti">Contanti</option>
+                    <option value="bonifico">Bonifico</option>
+                    <option value="assegno">Assegno</option>
+                  </select>
+                ) : (
+                  <input type={type || "text"} style={inp} value={(op as any)[field]} onChange={e => setOp(p => ({ ...p, [field]: e.target.value }))} />
+                )}
+              </div>
+            ))}
+            <div style={{ gridColumn: "1/-1" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", marginBottom: 5 }}>Note operazione</div>
+              <textarea style={{ ...inp, height: 80, paddingTop: 10 }} value={op.note_operazione} onChange={e => setOp(p => ({ ...p, note_operazione: e.target.value }))} />
+            </div>
+          </div>
+        )}
+
+        {/* TAB CLIENTE */}
+        {tab === "cliente" && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {([["Cognome","cognome"],["Nome","nome"],["Codice Fiscale","codice_fiscale"],["Nato a","luogo_nascita"],["Data nascita","data_nascita","date"],["Indirizzo","indirizzo"],["Comune","comune"],["Provincia","provincia"],["CAP","cap"],["Email","email"]] as [string,string,string?][]).map(([label, field, type]) => (
+              <div key={field}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", marginBottom: 5 }}>{label}</div>
+                <input type={type || "text"} style={inp} value={(cliente as any)[field]} onChange={e => setCliente(p => ({ ...p, [field]: e.target.value }))} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* TAB OGGETTI */}
+        {tab === "oggetti" && (
+          <div>
+            {oggetti.map((o, i) => (
+              <div key={i} style={{ border: "1.5px solid #e5e7eb", borderRadius: 10, padding: 14, marginBottom: 12, background: "#fafafa" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "#374151" }}>Oggetto {i+1}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 120px", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4 }}>Descrizione</div>
+                    <select style={{ ...inp, marginBottom: 6 }}
+                      value={DESCRIZIONI.includes(o.descrizione) ? o.descrizione : ""}
+                      onChange={e => { if (e.target.value) setOggetti(prev => prev.map((x,j) => j===i ? {...x, descrizione: e.target.value} : x)); }}>
+                      <option value="">— Seleziona —</option>
+                      {DESCRIZIONI.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    <input style={inp} value={o.descrizione} onChange={e => setOggetti(prev => prev.map((x,j) => j===i ? {...x, descrizione: e.target.value} : x))} placeholder="Testo libero..." />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4 }}>Materiale</div>
+                    <select style={inp} value={o.materiale} onChange={e => setOggetti(prev => prev.map((x,j) => j===i ? {...x, materiale: e.target.value} : x))}>
+                      <option value="oro">AU – Oro</option>
+                      <option value="argento">AG – Argento</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4 }}>Peso (g)</div>
+                    <input type="number" style={inp} value={o.peso}
+                      onChange={e => setOggetti(prev => prev.map((x,j) => j===i ? {...x, peso: e.target.value, peso_au: o.materiale==="oro" ? Number(e.target.value) : 0, peso_ag: o.materiale==="argento" ? Number(e.target.value) : 0} : x))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", marginBottom: 4 }}>Valore €</div>
+                    <input type="number" style={inp} value={o.valore} onChange={e => setOggetti(prev => prev.map((x,j) => j===i ? {...x, valore: e.target.value} : x))} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{ textAlign: "right", fontSize: 16, fontWeight: 800, color: "#059669", marginTop: 8 }}>
+              Totale: € {oggetti.reduce((a, o) => a + Number(o.valore||0), 0).toFixed(2)}
+            </div>
+          </div>
+        )}
+
+        {/* TAB FOTO DOCUMENTO */}
+        {tab === "foto" && (
+          <div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+              <select style={{ ...inp, width: 220 }} value={tipoFotoNuova} onChange={e => setTipoFotoNuova(e.target.value)}>
+                <option value="documento_fronte">Fronte documento</option>
+                <option value="documento_retro">Retro documento</option>
+                <option value="documento">Altro documento</option>
+              </select>
+              <button onClick={() => fileRef.current?.click()} style={{ background: "#059669", color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
+                📷 Aggiungi foto
+              </button>
+              <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) aggiungiPhoto(f); if (fileRef.current) fileRef.current.value = ""; }} />
+            </div>
+            {fotoDoc.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+                {fotoDoc.map((f, i) => (
+                  <div key={i} style={{ textAlign: "center" }}>
+                    <img src={`data:${f.mime_type};base64,${f.data_base64}`} alt={f.tipo}
+                      style={{ width: "100%", height: 130, objectFit: "cover", borderRadius: 8, border: "1.5px solid #e5e7eb", display: "block" }} />
+                    <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4, fontWeight: 600 }}>{f.tipo.replace("_", " ")}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: 30, color: "#9ca3af", background: "#f9fafb", borderRadius: 10 }}>
+                Nessuna foto documento.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer salva */}
+        {msg && (
+          <div style={{ marginTop: 16, padding: "10px 16px", background: msg.startsWith("✅") ? "#d1fae5" : "#fee2e2", borderRadius: 8, fontSize: 14, fontWeight: 700, color: msg.startsWith("✅") ? "#065f46" : "#dc2626" }}>
+            {msg}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
+          <button onClick={onClose} style={{ background: "#f3f4f6", color: "#374151", border: "none", borderRadius: 8, padding: "10px 22px", cursor: "pointer", fontWeight: 700 }}>Annulla</button>
+          <button onClick={salva} disabled={saving} style={{ background: saving ? "#9ca3af" : "#111827", color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", cursor: saving ? "not-allowed" : "pointer", fontWeight: 700, fontSize: 15 }}>
+            {saving ? "⏳ Salvataggio..." : "💾 Salva modifiche"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function scaricaExcel(schede: Scheda[]) {
+  const rows = [
+    ["N° Scheda","Data","Cognome","Nome","Codice Fiscale","Nato a","Data Nascita","Indirizzo","Comune","Provincia","CAP","Telefono","Email","Tipo Documento","N° Documento","Rilasciato da","Data Rilascio","Scadenza","Mezzo Pagamento","CRO/TRN","Totale €","Oggetti","Note"],
+  ];
+  schede.forEach(s => {
+    const oggettiStr = s.oggetti.map(o => `${o.descrizione} (${o.materiale}) ${o.peso_au ? o.peso_au+"g AU" : ""} ${o.peso_ag ? o.peso_ag+"g AG" : ""} = €${o.valore}`).join(" | ");
+    rows.push([
+      String(s.numero_scheda),
+      s.data_operazione ? new Date(s.data_operazione).toLocaleDateString("it-IT") : "",
+      s.cliente?.cognome || "", s.cliente?.nome || "",
+      s.cliente?.codice_fiscale || "",
+      s.cliente?.luogo_nascita || "",
+      s.cliente?.data_nascita ? new Date(s.cliente.data_nascita).toLocaleDateString("it-IT") : "",
+      s.cliente?.indirizzo || "", s.cliente?.comune || "", s.cliente?.provincia || "", s.cliente?.cap || "",
+      s.cliente?.email || "",
+      s.tipo_documento || "", s.numero_documento || "", s.ente_rilascio || "",
+      s.data_rilascio ? new Date(s.data_rilascio).toLocaleDateString("it-IT") : "",
+      s.data_scadenza ? new Date(s.data_scadenza).toLocaleDateString("it-IT") : "",
+      s.mezzo_pagamento || "", s.cro_trn || "",
+      String(s.totale_valore || 0),
+      oggettiStr,
+      (s.note_operazione || "").replace(/PRIVACY:.*/, "").trim(),
+    ]);
+  });
+
+  // Genera CSV con separatore ; (compatibile Excel italiano)
+  const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(";")).join("\n");
+  const bom = "\uFEFF"; // BOM per Excel italiano
+  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `backup_schede_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Dashboard() {
   const [schede, setSchede] = useState<Scheda[]>([]);
   const [negozio, setNegozio] = useState<Negozio | null>(null);
@@ -594,16 +865,19 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [filterData, setFilterData] = useState("");
   const [emailStatus, setEmailStatus] = useState<{ [id: number]: string }>({});
+  const [pdfStatus, setPdfStatus] = useState<{ [id: number]: string }>({});
   const [popupOggetti, setPopupOggetti] = useState<Scheda | null>(null);
   const [lightbox, setLightbox] = useState<{ src: string; tipo: string } | null>(null);
+  const [popupModifica, setPopupModifica] = useState<Scheda | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
+      // Carica negozio
       const { data: neg } = await supabase.from("negozio").select("*").eq("id", 1).single();
       if (neg) setNegozio(neg as Negozio);
 
-      // Carica schede SENZA base64 delle foto — lazy load on-demand
+      // Carica schede con cliente, oggetti, foto
       const { data: ops, error } = await supabase
         .from("operazioni")
         .select(`
@@ -611,7 +885,7 @@ export default function Dashboard() {
           tipo_documento, numero_documento, data_rilascio, data_scadenza, ente_rilascio,
           clienti (nome, cognome, email, codice_fiscale, luogo_nascita, data_nascita, indirizzo, comune, provincia, cap),
           oggetti (descrizione, materiale, peso_au, peso_ag, valore),
-          foto_scheda (tipo)
+          foto_scheda (tipo, data_base64, mime_type)
         `)
         .order("numero_scheda", { ascending: false });
 
@@ -631,8 +905,7 @@ export default function Dashboard() {
           ente_rilascio: op.ente_rilascio || "",
           cliente: op.clienti,
           oggetti: op.oggetti || [],
-          // Solo tipo, senza base64 — serve per badge ✅ firma/privacy
-          foto: (op.foto_scheda || []).map((f: any) => ({ tipo: f.tipo, data_base64: "", mime_type: "" })),
+          foto: op.foto_scheda || [],
         })));
       }
       setLoading(false);
@@ -651,92 +924,38 @@ export default function Dashboard() {
     return matchSearch && matchData;
   });
 
-  // Carica foto complete on-demand (lazy)
-  const fotoLoadedRef = React.useRef<Set<number>>(new Set());
-  async function caricaFotoScheda(schedaId: number): Promise<{ tipo: string; data_base64: string; mime_type: string }[]> {
-    // Se già caricate, prendi dallo state
-    const schedaInState = schede.find(s => s.id === schedaId);
-    if (fotoLoadedRef.current.has(schedaId) && schedaInState) {
-      return schedaInState.foto;
-    }
-    const { data: foto } = await supabase
-      .from("foto_scheda")
-      .select("tipo, data_base64, mime_type")
-      .eq("operazione_id", schedaId);
-    const fotoComplete = foto || [];
-    fotoLoadedRef.current.add(schedaId);
-    setSchede(prev => prev.map(s => s.id === schedaId ? { ...s, foto: fotoComplete } : s));
-    return fotoComplete;
-  }
-
-  // Apre window SUBITO (nel click handler) poi riempie con i dati
   function apriPDF(scheda: Scheda) {
+    const html = buildPDFHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento PDF...</p></body></html>");
-    caricaFotoScheda(scheda.id).then(foto => {
-      const s = { ...scheda, foto };
-      const html = buildPDFHtml(s, negozio);
-      win.document.open(); win.document.write(html); win.document.close();
-    });
+    win.document.write(html);
+    win.document.close();
   }
 
   function stampaPDF(scheda: Scheda) {
+    const html = buildPDFHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
-    caricaFotoScheda(scheda.id).then(foto => {
-      const s = { ...scheda, foto };
-      const html = buildPDFHtml(s, negozio);
-      win.document.open(); win.document.write(html); win.document.close();
-      setTimeout(() => { win.focus(); win.print(); }, 800);
-    });
-  }
-
-  function apriDocumenti(scheda: Scheda) {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento documenti...</p></body></html>");
-    caricaFotoScheda(scheda.id).then(foto => {
-      const s = { ...scheda, foto };
-      const html = buildDocumentiHtml(s, negozio);
-      win.document.open(); win.document.write(html); win.document.close();
-    });
-  }
-
-  function stampaDocumenti(scheda: Scheda) {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
-    caricaFotoScheda(scheda.id).then(foto => {
-      const s = { ...scheda, foto };
-      const html = buildDocumentiHtml(s, negozio);
-      win.document.open(); win.document.write(html); win.document.close();
-      setTimeout(() => { win.focus(); win.print(); }, 800);
-    });
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
   }
 
   function apriPrivacy(scheda: Scheda) {
+    const html = buildPrivacyHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento privacy...</p></body></html>");
-    caricaFotoScheda(scheda.id).then(foto => {
-      const s = { ...scheda, foto };
-      const html = buildPrivacyHtml(s, negozio);
-      win.document.open(); win.document.write(html); win.document.close();
-    });
+    win.document.write(html);
+    win.document.close();
   }
 
   function stampaPrivacy(scheda: Scheda) {
+    const html = buildPrivacyHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
-    caricaFotoScheda(scheda.id).then(foto => {
-      const s = { ...scheda, foto };
-      const html = buildPrivacyHtml(s, negozio);
-      win.document.open(); win.document.write(html); win.document.close();
-      setTimeout(() => { win.focus(); win.print(); }, 800);
-    });
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
   }
 
   async function inviaEmail(scheda: Scheda) {
@@ -751,6 +970,8 @@ export default function Dashboard() {
     try {
       setEmailStatus(p => ({ ...p, [scheda.id]: "⏳ Invio..." }));
       const emailjs = await import("@emailjs/browser");
+
+      // Sostituisci variabili nel testo
       const nomeCliente = `${scheda.cliente.cognome} ${scheda.cliente.nome}`;
       const testo = (negozio.email_testo || "")
         .replace(/{{nome_cliente}}/g, nomeCliente)
@@ -759,14 +980,23 @@ export default function Dashboard() {
         .replace(/{{totale}}/g, currency(scheda.totale_valore))
         .replace(/{{nome_negozio}}/g, negozio.nome || "")
         .replace(/{{telefono_negozio}}/g, negozio.telefono || "");
+
       const oggetto = (negozio.email_oggetto || "Ricevuta acquisto")
         .replace(/{{numero_scheda}}/g, String(scheda.numero_scheda))
         .replace(/{{nome_cliente}}/g, nomeCliente)
         .replace(/{{data}}/g, formatDate(scheda.data_operazione));
+
       await emailjs.send(
         negozio.emailjs_service_id,
         negozio.emailjs_template_id,
-        { to_email: scheda.cliente.email, to_name: nomeCliente, subject: oggetto, message: testo, nome_negozio: negozio.nome, telefono_negozio: negozio.telefono },
+        {
+          to_email: scheda.cliente.email,
+          to_name: nomeCliente,
+          subject: oggetto,
+          message: testo,
+          nome_negozio: negozio.nome,
+          telefono_negozio: negozio.telefono,
+        },
         negozio.emailjs_public_key
       );
       setEmailStatus(p => ({ ...p, [scheda.id]: "✅ Inviata!" }));
@@ -781,6 +1011,11 @@ export default function Dashboard() {
   return (
     <div style={{ minHeight: "100vh", background: "#f0f2f5", fontFamily: "Arial, sans-serif", padding: "76px 16px 24px" }}>
       <NavBar />
+      {popupModifica && <PopupModifica
+        scheda={popupModifica}
+        onClose={() => setPopupModifica(null)}
+        onSalvato={s => setSchede(prev => prev.map(x => x.id === s.id ? s : x))}
+      />}
       {popupOggetti && <PopupOggetti
         scheda={popupOggetti}
         onClose={() => setPopupOggetti(null)}
@@ -793,17 +1028,20 @@ export default function Dashboard() {
       {lightbox && <Lightbox src={lightbox.src} tipo={lightbox.tipo} onClose={() => setLightbox(null)} />}
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
+        {/* Header */}
         <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "2px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111827", margin: 0 }}>📊 Dashboard Schede</h1>
             <p style={{ color: "#6b7280", fontSize: 13, margin: "4px 0 0" }}>{schede.length} schede totali</p>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button style={btn("#059669")} onClick={() => scaricaExcel(schede)}>⬇ Backup Excel</button>
             <a href="/impostazioni" style={{ ...btn("#6b7280"), textDecoration: "none", display: "inline-block" }}>⚙️ Impostazioni</a>
             <a href="/" style={{ ...btn("#111827"), textDecoration: "none", display: "inline-block" }}>+ Nuova Scheda</a>
           </div>
         </div>
 
+        {/* Filtri */}
         <div style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <input style={{ ...inp, width: 280 }} placeholder="🔍 Cerca per nome, cognome, CF, n° scheda..." value={search} onChange={e => setSearch(e.target.value)} />
           <input type="date" style={{ ...inp, width: 180 }} value={filterData} onChange={e => setFilterData(e.target.value)} />
@@ -812,7 +1050,7 @@ export default function Dashboard() {
         </div>
 
         {/* Statistiche rapide */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
           {[
             { label: "Schede totali", val: schede.length, color: "#2563eb" },
             { label: "Totale acquistato", val: currency(schede.reduce((a, s) => a + (s.totale_valore || 0), 0)), color: "#059669" },
@@ -820,84 +1058,13 @@ export default function Dashboard() {
             { label: "Questo mese", val: schede.filter(s => s.data_operazione?.slice(0, 7) === new Date().toISOString().slice(0, 7)).length, color: "#7c3aed" },
           ].map(({ label, val, color }) => (
             <div key={label} style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", borderLeft: `4px solid ${color}` }}>
-              <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: 6 }}>{label}</div>
+              <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
               <div style={{ fontSize: 22, fontWeight: 800, color }}>{val}</div>
             </div>
           ))}
         </div>
 
-        {/* Statistiche grammi per mese */}
-        {(() => {
-          const meseCorrente = new Date().toISOString().slice(0, 7);
-          const schedeDelMese = schede.filter(s => s.data_operazione?.slice(0, 7) === meseCorrente);
-          const auMese = schedeDelMese.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_au || 0), 0), 0);
-          const agMese = schedeDelMese.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_ag || 0), 0), 0);
-          const auTot = schede.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_au || 0), 0), 0);
-          const agTot = schede.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_ag || 0), 0), 0);
-
-          // Grammi per mese (ultimi 6 mesi)
-          const mesi: { mese: string; au: number; ag: number }[] = [];
-          for (let i = 5; i >= 0; i--) {
-            const d = new Date();
-            d.setMonth(d.getMonth() - i);
-            const key = d.toISOString().slice(0, 7);
-            const nome = d.toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
-            const schedeM = schede.filter(s => s.data_operazione?.slice(0, 7) === key);
-            const au = schedeM.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_au || 0), 0), 0);
-            const ag = schedeM.reduce((a, s) => a + s.oggetti.reduce((b, o) => b + (o.peso_ag || 0), 0), 0);
-            mesi.push({ mese: nome, au, ag });
-          }
-          const maxVal = Math.max(...mesi.map(m => Math.max(m.au, m.ag)), 1);
-
-          return (
-            <div style={{ background: "#fff", borderRadius: 14, padding: 20, marginBottom: 24, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.05em", margin: 0, color: "#111827" }}>
-                  ⚖️ Grammi acquistati
-                </h3>
-                <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#d97706", textTransform: "uppercase" as const }}>AU questo mese</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "#d97706" }}>{auMese.toFixed(2)} g</div>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" as const }}>AG questo mese</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "#6b7280" }}>{agMese.toFixed(2)} g</div>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#d97706", textTransform: "uppercase" as const }}>AU totale</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "#d97706" }}>{auTot.toFixed(2)} g</div>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase" as const }}>AG totale</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "#6b7280" }}>{agTot.toFixed(2)} g</div>
-                  </div>
-                </div>
-              </div>
-              {/* Grafico a barre */}
-              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 100 }}>
-                {mesi.map((m, i) => (
-                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                    <div style={{ width: "100%", display: "flex", gap: 2, alignItems: "flex-end", height: 80 }}>
-                      <div title={`AU: ${m.au.toFixed(2)}g`} style={{ flex: 1, background: "#fbbf24", borderRadius: "3px 3px 0 0", height: `${(m.au / maxVal) * 100}%`, minHeight: m.au > 0 ? 4 : 0, transition: "height 0.3s" }} />
-                      <div title={`AG: ${m.ag.toFixed(2)}g`} style={{ flex: 1, background: "#d1d5db", borderRadius: "3px 3px 0 0", height: `${(m.ag / maxVal) * 100}%`, minHeight: m.ag > 0 ? 4 : 0, transition: "height 0.3s" }} />
-                    </div>
-                    <div style={{ fontSize: 10, color: "#6b7280", fontWeight: 600, textAlign: "center" }}>{m.mese}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 16, marginTop: 10, justifyContent: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#6b7280" }}>
-                  <div style={{ width: 12, height: 12, background: "#fbbf24", borderRadius: 2 }} /> AU – Oro
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#6b7280" }}>
-                  <div style={{ width: 12, height: 12, background: "#d1d5db", borderRadius: 2 }} /> AG – Argento
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
+        {/* Lista schede */}
         {loading ? (
           <div style={{ textAlign: "center", padding: 60, color: "#6b7280", fontSize: 16 }}>⏳ Caricamento schede...</div>
         ) : schedeFiltered.length === 0 ? (
@@ -907,6 +1074,8 @@ export default function Dashboard() {
             {schedeFiltered.map(scheda => (
               <div key={scheda.id} style={{ background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "1.5px solid #e5e7eb" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+
+                  {/* Info scheda */}
                   <div style={{ flex: 1, minWidth: 200 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
                       <div style={{ background: "#111827", color: "#fff", borderRadius: 8, padding: "4px 14px", fontWeight: 800, fontSize: 16 }}>N° {scheda.numero_scheda}</div>
@@ -919,41 +1088,40 @@ export default function Dashboard() {
                     {scheda.cliente?.codice_fiscale && <div style={{ fontSize: 12, color: "#9ca3af" }}>CF: {scheda.cliente.codice_fiscale}</div>}
                     {scheda.cliente?.email && <div style={{ fontSize: 12, color: "#6b7280" }}>✉ {scheda.cliente.email}</div>}
                     <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-                      {scheda.oggetti.length} oggetti —{" "}
-                      {scheda.foto.filter(f => f.tipo.startsWith("oggetto")).length} foto oggetti —{" "}
-                      {scheda.foto.find(f => f.tipo === "firma_cliente") ? " ✅ firmata" : " ⚠️ no firma"} —{" "}
+                      {scheda.oggetti.length} oggetti — {scheda.foto.filter(f => f.tipo.startsWith("oggetto")).length} foto oggetti —
+                      {scheda.foto.find(f => f.tipo === "firma_cliente") ? " ✅ firmata" : " ⚠️ no firma"} —
                       {scheda.foto.find(f => f.tipo === "firma_privacy") ? " ✅ privacy" : " ⚠️ no privacy"}
                     </div>
                   </div>
+
+                  {/* Totale */}
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 24, fontWeight: 800, color: "#059669" }}>{currency(scheda.totale_valore)}</div>
                     <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>totale acquisto</div>
                   </div>
                 </div>
 
-                {/* Bottoni azioni — divisi in due righe per chiarezza */}
-                <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #f3f4f6" }}>
-                  {/* Riga 1: PDF scheda */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", minWidth: 60 }}>Scheda:</span>
-                    <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
-                    <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
-                    <button style={btn("#059669")} onClick={() => { const win = null; caricaFotoScheda(scheda.id).then(foto => setPopupOggetti({ ...scheda, foto })); }}>📦 Oggetti</button>
-                    <button style={btn(scheda.cliente?.email ? "#0284c7" : "#9ca3af")} onClick={() => inviaEmail(scheda)} disabled={!scheda.cliente?.email}>📧 Invia Email</button>
-                    {emailStatus[scheda.id] && (
-                      <span style={{ fontSize: 13, fontWeight: 600, color: emailStatus[scheda.id].startsWith("✅") ? "#059669" : emailStatus[scheda.id].startsWith("⏳") ? "#2563eb" : "#dc2626" }}>
-                        {emailStatus[scheda.id]}
-                      </span>
-                    )}
-                  </div>
-                  {/* Riga 2: documenti e privacy separati */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", minWidth: 60 }}>Allegati:</span>
-                    <button style={btn("#b45309")} onClick={() => apriDocumenti(scheda)}>🪪 Documenti</button>
-                    <button style={btn("#92400e")} onClick={() => stampaDocumenti(scheda)}>🖨️ Stampa Documenti</button>
-                    <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
-                    <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>
-                  </div>
+                {/* Bottoni azioni */}
+                <div style={{ display: "flex", gap: 10, marginTop: 14, paddingTop: 14, borderTop: "1px solid #f3f4f6", flexWrap: "wrap", alignItems: "center" }}>
+                  <button style={btn("#f59e0b", "#fff")} onClick={() => setPopupModifica(scheda)}>✏️ Modifica</button>
+                  <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
+                  <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
+                  <button style={btn("#059669")} onClick={() => setPopupOggetti(scheda)}>📦 Oggetti</button>
+                  <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
+                  <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>
+                  <button
+                    style={btn(scheda.cliente?.email ? "#059669" : "#9ca3af")}
+                    onClick={() => inviaEmail(scheda)}
+                    disabled={!scheda.cliente?.email}
+                    title={scheda.cliente?.email ? `Invia a ${scheda.cliente.email}` : "Nessuna email cliente"}
+                  >
+                    📧 Invia Email
+                  </button>
+                  {emailStatus[scheda.id] && (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: emailStatus[scheda.id].startsWith("✅") ? "#059669" : emailStatus[scheda.id].startsWith("⏳") ? "#2563eb" : "#dc2626" }}>
+                      {emailStatus[scheda.id]}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
