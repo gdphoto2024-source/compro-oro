@@ -889,7 +889,8 @@ export default function Dashboard() {
         `)
         .order("numero_scheda", { ascending: false });
 
-      if (!error && ops) {
+      if (error) console.error("Errore query schede:", JSON.stringify(error));
+      if (ops && ops.length >= 0) {
         setSchede(ops.map((op: any) => ({
           id: op.id,
           cliente_id: op.cliente_id,
