@@ -488,9 +488,12 @@ export default function SchedaAcquisti() {
 
   // Funzione per aggiornare nr articoli e ridimensionare pesiPezzi
   function uiNrArticoli(idx: number, nr: string) {
-    const n = Math.max(1, Math.min(99, parseInt(nr) || 1));
+    // Permetti digitazione libera, aggiorna pesi solo se numero valido
     setItems(p => p.map((it, j) => {
       if (j !== idx) return it;
+      const parsed = parseInt(nr);
+      if (!nr || isNaN(parsed)) return { ...it, nrArticoli: nr }; // lascia digitare
+      const n = Math.max(1, Math.min(99, parsed));
       const nuoviPesi = Array.from({ length: n }, (_, k) => it.pesiPezzi[k] || "");
       return { ...it, nrArticoli: String(n), pesiPezzi: nuoviPesi };
     }));
@@ -1050,12 +1053,12 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
                   </div>
                 ) : (
                   <div onClick={() => ref.current?.click()}
-                    style={{ width: "100%", height: 200, borderRadius: 8, border: "2px dashed #dc2626", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#dc2626", fontSize: 13, cursor: "pointer", background: "#fff5f5", gap: 8 }}>
+                    style={{ width: "100%", height: 200, borderRadius: 8, border: "2px dashed #dc2626", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#dc2626", fontSize: 13, cursor: "pointer", background: "#fff5f5", gap: 8, position: "relative" }}>
                     <div style={{ fontSize: 32 }}>📷</div>
                     <div style={{ fontWeight: 700 }}>Tocca per fotografare</div>
-                    <div style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", padding: "0 10px" }}>Tieni il documento dentro il rettangolo rosso della fotocamera</div>
-                    {/* Cornice guida simulata */}
-                    <div style={{ position: "absolute", border: "2px solid #dc2626", borderRadius: 4, width: "70%", height: "60%", opacity: 0.3, pointerEvents: "none" }} />
+                    <div style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", padding: "0 10px" }}>Inquadra il documento nel rettangolo rosso</div>
+                    {/* Cornice guida */}
+                    <div style={{ position: "absolute", border: "2px solid #dc2626", borderRadius: 6, width: "75%", height: "65%", top: "50%", left: "50%", transform: "translate(-50%,-50%)", opacity: 0.4, pointerEvents: "none" }} />
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>{file?.name || "Nessun file caricato"}</div>
