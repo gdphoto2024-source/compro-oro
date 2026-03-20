@@ -93,6 +93,72 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// Corregge orientamento EXIF delle foto scattate da iPad/iPhone
+async function fixOrientation(file: File): Promise<{ base64: string; previewUrl: string; mimeType: string }> {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const arrayBuffer = e.target!.result as ArrayBuffer;
+      const view = new DataView(arrayBuffer);
+      let orientation = 1;
+      // Leggi EXIF orientation
+      if (view.getUint16(0, false) === 0xFFD8) {
+        let offset = 2;
+        while (offset < view.byteLength) {
+          const marker = view.getUint16(offset, false);
+          offset += 2;
+          if (marker === 0xFFE1) {
+            if (view.getUint32(offset + 2, false) === 0x45786966) {
+              const little = view.getUint16(offset + 8, false) === 0x4949;
+              const tags = view.getUint16(offset + 14, little);
+              for (let i = 0; i < tags; i++) {
+                if (view.getUint16(offset + 16 + i * 12, little) === 0x0112) {
+                  orientation = view.getUint16(offset + 16 + i * 12 + 8, little);
+                  break;
+                }
+              }
+            }
+            break;
+          }
+          if ((marker & 0xFF00) !== 0xFF00) break;
+          offset += view.getUint16(offset, false);
+        }
+      }
+      // Disegna su canvas con rotazione corretta
+      const img = new Image();
+      const blob = new Blob([arrayBuffer], { type: file.type });
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d")!;
+        const { width: w, height: h } = img;
+        if ([5,6,7,8].includes(orientation)) { canvas.width = h; canvas.height = w; }
+        else { canvas.width = w; canvas.height = h; }
+        switch (orientation) {
+          case 2: ctx.transform(-1,0,0,1,w,0); break;
+          case 3: ctx.transform(-1,0,0,-1,w,h); break;
+          case 4: ctx.transform(1,0,0,-1,0,h); break;
+          case 5: ctx.transform(0,1,1,0,0,0); break;
+          case 6: ctx.transform(0,1,-1,0,h,0); break;
+          case 7: ctx.transform(0,-1,-1,0,h,w); break;
+          case 8: ctx.transform(0,-1,1,0,0,w); break;
+        }
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob2 => {
+          if (!blob2) { resolve({ base64: "", previewUrl: url, mimeType: file.type }); return; }
+          const previewUrl2 = URL.createObjectURL(blob2);
+          const r2 = new FileReader();
+          r2.onload = () => resolve({ base64: (r2.result as string).split(",")[1], previewUrl: previewUrl2, mimeType: "image/jpeg" });
+          r2.readAsDataURL(blob2);
+        }, "image/jpeg", 0.92);
+      };
+      img.src = url;
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 function currency(v: string | number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(v || 0));
 }
@@ -452,17 +518,17 @@ export default function SchedaAcquisti() {
   const uc = (f: string, v: string) => setCustomer((p: any) => ({ ...p, [f]: v }));
   const ui = (i: number, f: string, v: any) => setItems(p => p.map((it, idx) => idx === i ? { ...it, [f]: v } : it));
 
-  function handleFile(file: File | null, setFile: any, setPreview: any, side: string) {
+  async function handleFile(file: File | null, setFile: any, setPreview: any, side: string) {
     if (!file) return;
     if (!file.type.startsWith("image/")) { setStatus({ text: "Il file deve essere un'immagine.", type: "error" }); return; }
     setFile(file);
-    const previewUrl = URL.createObjectURL(file);
+    setStatus({ text: `⏳ Elaborazione ${side}...`, type: "loading" });
+    const { base64, previewUrl, mimeType } = await fixOrientation(file);
     setPreview(previewUrl);
-    fileToBase64(file).then(base64 => {
-      const tipo = side === "Fronte" ? "fronte" : "retro";
-      setFotoDocumento((prev: FotoAllegata[]) => [...prev.filter((f: FotoAllegata) => !f.nome.startsWith(tipo + "_")), { nome: `${tipo}_${file.name}`, mimeType: file.type, base64, preview: previewUrl }]);
-    });
-    setStatus({ text: `${side} caricato: ${file.name}`, type: "success" });
+    const tipo = side === "Fronte" ? "fronte" : "retro";
+    setFotoDocumento((prev: FotoAllegata[]) => [...prev.filter((f: FotoAllegata) => !f.nome.startsWith(tipo + "_")),
+      { nome: `${tipo}_${file.name}`, mimeType, base64, preview: previewUrl }]);
+    setStatus({ text: `✅ ${side} caricato e orientato correttamente.`, type: "success" });
   }
 
   async function runOCR(file: File | null, side: string) {
@@ -507,27 +573,46 @@ export default function SchedaAcquisti() {
 
       const content: any[] = [];
       if (frontFile) {
-        const b64 = await fileToBase64(frontFile);
-        content.push({ type: "image", source: { type: "base64", media_type: frontFile.type || "image/jpeg", data: b64 } });
-        content.push({ type: "text", text: "Questa è la FRONTE del documento." });
+        const { base64: b64, mimeType: mt } = await fixOrientation(frontFile);
+        content.push({ type: "image", source: { type: "base64", media_type: mt, data: b64 } });
+        content.push({ type: "text", text: "Questa è la FRONTE del documento di identità." });
       }
       if (backFile) {
-        const b64 = await fileToBase64(backFile);
-        content.push({ type: "image", source: { type: "base64", media_type: backFile.type || "image/jpeg", data: b64 } });
-        content.push({ type: "text", text: "Questo è il RETRO del documento." });
+        const { base64: b64, mimeType: mt } = await fixOrientation(backFile);
+        content.push({ type: "image", source: { type: "base64", media_type: mt, data: b64 } });
+        content.push({ type: "text", text: "Questo è il RETRO del documento di identità." });
       }
-      content.push({ type: "text", text: `Sei un sistema OCR specializzato in documenti di identità italiani.
-Analizza le immagini del documento e estrai TUTTI i dati visibili combinando fronte e retro.
-Rispondi SOLO con un oggetto JSON valido (niente testo prima o dopo), con questi campi:
+      content.push({ type: "text", text: `Sei un sistema OCR esperto in documenti di identità italiani (CIE, patente, passaporto).
+Analizza ATTENTAMENTE tutte le immagini fornite ed estrai ogni dato leggibile.
+
+ISTRUZIONI PRECISE:
+- Carta d'identità italiana (CIE): sul FRONTE trovi cognome, nome, luogo/data nascita, sesso, cittadinanza, indirizzo, comune, CF (in basso a destra o nel chip), numero documento (in alto a destra es. CA00000AA). Sul RETRO trovi scadenza, ente rilascio, e spesso il CF in formato MRZ (ultima riga dopo <<).
+- Patente: numero patente in alto, nome/cognome, data nascita, indirizzo, scadenza, ente.
+- Passaporto: dati nella zona MRZ (ultime 2 righe): cognome<<nome, numero passaporto, CF, data nascita, scadenza.
+- Codice Fiscale: SEMPRE 16 caratteri alfanumerici. Trovalo nella zona MRZ o stampato esplicitamente. Non inventarlo.
+- Date: converti SEMPRE in formato YYYY-MM-DD. Es: "15 MAR 1990" → "1990-03-15", "15/03/90" → "1990-03-15".
+- Numero documento: es. CA12345BC (CIE), oppure AA1234567 (passaporto), oppure TO1234567A (patente).
+- Se un dato non è leggibile o non esiste, lascia stringa vuota "". NON inventare dati.
+
+Rispondi SOLO con questo JSON valido (nessun testo prima o dopo, nessun markdown):
 {
-  "nome": "","cognome": "","luogoNascita": "","dataNascita": "YYYY-MM-DD",
-  "indirizzo": "","comune": "","provincia": "","cap": "",
-  "codiceFiscale": "","tipoDocumento": "","numeroDocumento": "",
-  "dataRilascio": "YYYY-MM-DD","dataScadenza": "YYYY-MM-DD","enteRilascio": "",
-  "rawTextFronte": "(testo visibile nel fronte)","rawTextRetro": "(testo visibile nel retro)"
-}
-Regole: date YYYY-MM-DD, campi non visibili stringa vuota, CF 16 caratteri,
-tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
+  "nome": "",
+  "cognome": "",
+  "luogoNascita": "",
+  "dataNascita": "YYYY-MM-DD",
+  "indirizzo": "",
+  "comune": "",
+  "provincia": "",
+  "cap": "",
+  "codiceFiscale": "",
+  "tipoDocumento": "",
+  "numeroDocumento": "",
+  "dataRilascio": "YYYY-MM-DD",
+  "dataScadenza": "YYYY-MM-DD",
+  "enteRilascio": "",
+  "rawTextFronte": "",
+  "rawTextRetro": ""
+}` });
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -944,16 +1029,36 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
         {/* 1. Documenti */}
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 18px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>1 — Documenti</h2>
+          {/* Guida fotocamera iPad */}
+          <div style={{ background: "#eff6ff", border: "1.5px solid #2563eb", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: "#1d4ed8" }}>
+            <strong>📱 Guida scatto documento:</strong> Posiziona il documento su una superficie piana e luminosa. Inquadra tutto il documento dentro il rettangolo. Tieni il tablet/telefono parallelo al documento (non inclinato). Scatta in orizzontale per risultati migliori.
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 16 }}>
             {[
-              { label: "Fronte documento", file: frontFile, preview: frontPreview },
-              { label: "Retro documento", file: backFile, preview: backPreview },
-            ].map(({ label, file, preview }) => (
+              { label: "Fronte documento", file: frontFile, preview: frontPreview, ref: frontRef, side: "Fronte" },
+              { label: "Retro documento", file: backFile, preview: backPreview, ref: backRef, side: "Retro" },
+            ].map(({ label, file, preview, ref, side }) => (
               <div key={label} style={{ border: "1.5px solid #e5e7eb", borderRadius: 12, padding: 16, background: "#fafafa" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{label}</div>
-                <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 10 }}>{file?.name || "Nessun file"}</div>
-                {preview ? <img src={preview} alt={label} style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb" }} />
-                  : <div style={{ width: "100%", height: 180, borderRadius: 8, border: "1.5px dashed #d1d5db", display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", fontSize: 13 }}>Nessuna anteprima</div>}
+                {preview ? (
+                  <div style={{ position: "relative" }}>
+                    <img src={preview} alt={label} style={{ width: "100%", maxHeight: 280, objectFit: "contain", borderRadius: 8, border: "1px solid #e5e7eb", display: "block" }} />
+                    <button onClick={() => ref.current?.click()}
+                      style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.7)", color: "#fff", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                      🔄 Ricarica
+                    </button>
+                  </div>
+                ) : (
+                  <div onClick={() => ref.current?.click()}
+                    style={{ width: "100%", height: 200, borderRadius: 8, border: "2px dashed #dc2626", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#dc2626", fontSize: 13, cursor: "pointer", background: "#fff5f5", gap: 8 }}>
+                    <div style={{ fontSize: 32 }}>📷</div>
+                    <div style={{ fontWeight: 700 }}>Tocca per fotografare</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", padding: "0 10px" }}>Tieni il documento dentro il rettangolo rosso della fotocamera</div>
+                    {/* Cornice guida simulata */}
+                    <div style={{ position: "absolute", border: "2px solid #dc2626", borderRadius: 4, width: "70%", height: "60%", opacity: 0.3, pointerEvents: "none" }} />
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>{file?.name || "Nessun file caricato"}</div>
               </div>
             ))}
           </div>
