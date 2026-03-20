@@ -596,8 +596,8 @@ tipoDocumento: "Carta di identità" o "Patente di guida" o "Passaporto".` });
   // Dopo conferma privacy → salva tutto
   function stampaPDFDopoSalvataggio(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }, numScheda: number) {
     const dataOra = new Date(dataOperazione).toLocaleDateString("it-IT");
-    const pesoAuTot = items.reduce((a, i) => a + Number(i.pesoAu || 0), 0);
-    const pesoAgTot = items.reduce((a, i) => a + Number(i.pesoAg || 0), 0);
+    const pesoAuTot = items.filter(i => i.materiale === "oro").reduce((a, i) => a + i.pesiPezzi.reduce((b, p) => b + Number(p||0), 0), 0);
+    const pesoAgTot = items.filter(i => i.materiale === "argento").reduce((a, i) => a + i.pesiPezzi.reduce((b, p) => b + Number(p||0), 0), 0);
     const oggettiDesc = items.filter(i => i.descrizione).map((o, i) =>
       `${i+1}. ${o.descrizione}${o.materiale === "oro" ? " (AU)" : " (AG)"}  –  ${currency(o.valore)}`
     ).join("<br>");
