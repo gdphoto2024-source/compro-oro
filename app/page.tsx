@@ -1119,7 +1119,19 @@ ${negozio?.firma_base64 ? `<div class="section-title">Firma Titolare</div><img s
                     onChange={e => uiNrArticoli(i, e.target.value)} />
                 </Field>
                 <Field label="Descrizione">
-                  <input style={inp} value={item.descrizione} onChange={e => ui(i, "descrizione", e.target.value)} placeholder="Es. anello, bracciale, catena..." />
+                  <select style={{ ...inp, background: "#fff" }}
+                    value={item.descrizione}
+                    onChange={e => ui(i, "descrizione", e.target.value)}>
+                    <option value="">— Seleziona tipo —</option>
+                    {[
+                      "Anello","Anello con pietre","Fede",
+                      "Braccialetto","Braccialetto con pietre","Bracciale","Bracciale rigido","Bracciale multiplo","Bracciale con pietre","Bracciale con ciondoli",
+                      "Collanina","Collanina con ciondoli","Collanina con pietre","Girocollo","Girocollo con pietre",
+                      "Paia orecchini","Paia orecchini con pietre","Orecchino spaiato","Orecchino spaiato con pietre",
+                      "Portachiavi","Fermacravatta","Spilla","Spilla con pietre","Spilla con ciondoli",
+                      "Cassa fondello orologio","Cassa-fondello cinghietto orologio","Medaglia",
+                    ].map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
                 </Field>
                 <Field label="Materiale">
                   <select style={{ ...inp, background: isOro ? "#fef9c3" : "#eff6ff", fontWeight: 700 }}
