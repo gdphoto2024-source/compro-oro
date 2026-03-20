@@ -785,6 +785,7 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
       <tr><th>Data rilascio</th><td>${customer.dataRilascio ? new Date(customer.dataRilascio).toLocaleDateString("it-IT") : "—"}</td></tr>
       <tr><th>Scadenza</th><td>${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}</td></tr>
     </table>
+    ${(fotoFronteB64 || fotoRetroB64) ? `<div style="display:flex;gap:6px;margin-top:4px">${fotoFronteB64 ? `<img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-doc" alt="Fronte">` : ""}${fotoRetroB64 ? `<img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-doc" alt="Retro">` : ""}</div>` : ""}
   </div>
 </div>
 
@@ -840,78 +841,31 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
   function buildDocumentiHTML(numScheda: number) {
     const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
     const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
-    const hasBoth = fotoFronteB64 && fotoRetroB64;
-    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:40px;object-fit:contain" alt="Logo">` : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
+    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:50px;object-fit:contain" alt="Logo">` : `<span style="font-size:16px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
     return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Documenti N° ${numScheda}</title>
 <style>
-  @page { size: A4 portrait; margin: 8mm 10mm; }
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; padding: 0; height: 277mm; display: flex; flex-direction: column; }
-  .hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; }
-  .titolo { font-size: 13px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; flex-shrink: 0; }
-  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 5px 10px; margin-bottom: 8px; font-size: 11px; flex-shrink: 0; }
-  .foto-wrap { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-  .foto-block { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .foto-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 4px; letter-spacing: 1px; flex-shrink: 0; }
-  .foto-grande { width: 100%; height: 100%; object-fit: contain; border: 1px solid #aaa; border-radius: 6px; display: block; flex: 1; min-height: 0; }
+  @page { size: A4 portrait; margin: 10mm; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+  .hdr { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 12px; }
+  .titolo { font-size: 14px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; }
+  .foto-section { margin-bottom: 20px; }
+  .foto-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 8px; letter-spacing: 1px; }
+  .foto-grande { width: 100%; max-height: 340px; object-fit: contain; border: 1px solid #ccc; border-radius: 8px; display: block; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style></head><body>
 <div class="hdr">
   <div>${logoHtml}</div>
-  <div style="text-align:right;font-size:11px"><strong>Scheda N° ${numScheda}</strong> — ${new Date(dataOperazione).toLocaleDateString("it-IT")}</div>
+  <div style="text-align:right"><strong>Scheda N° ${numScheda}</strong><br>${new Date(dataOperazione).toLocaleDateString("it-IT")}</div>
 </div>
-<div class="titolo">📄 Documenti di Identità</div>
+<div class="titolo">Documenti di Identità</div>
 <div class="info-box">
-  <strong>${customer.cognome} ${customer.nome}</strong> &nbsp;|&nbsp; CF: <strong>${customer.codiceFiscale || "—"}</strong> &nbsp;|&nbsp;
-  ${customer.tipoDocumento} N° <strong>${customer.numeroDocumento}</strong> &nbsp;|&nbsp; Scad.: ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}
+  <strong>${customer.cognome} ${customer.nome}</strong> — CF: ${customer.codiceFiscale || "—"}<br>
+  ${customer.tipoDocumento} N° ${customer.numeroDocumento} — Scadenza: ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}
 </div>
-<div class="foto-wrap">
-  ${fotoFronteB64 ? `<div class="foto-block"><div class="foto-label">Fronte documento</div><img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-grande" alt="Fronte"></div>` : ""}
-  ${fotoRetroB64 ? `<div class="foto-block"><div class="foto-label">Retro documento</div><img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-grande" alt="Retro"></div>` : ""}
-  ${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;color:#9ca3af;flex:1;display:flex;align-items:center;justify-content:center">Nessuna foto documento allegata</div>` : ""}
-</div>
-</body></html>`;
-  }
-
-  function buildPrivacyHTMLScheda(numScheda: number, privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) {
-    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:45px;object-fit:contain" alt="Logo">` : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
-    const oggi = new Date().toLocaleDateString("it-IT");
-    const nomeCliente = `${customer.cognome} ${customer.nome}`.trim();
-    const firmaImg = (b64: string) => b64 ? `<img src="data:image/png;base64,${b64}" style="max-height:55px;max-width:200px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fafafa;display:block">` : "<div style='height:55px;border:1px dashed #ccc;border-radius:4px'></div>";
-    const consensoRow = (n: number, testo: string, si: boolean, firma: string) => `
-      <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;margin-bottom:10px">
-        <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#6b7280;margin-bottom:6px">Consenso ${n}</div>
-        <div style="font-size:11px;line-height:1.6;color:#374151;margin-bottom:8px">${testo}</div>
-        <div style="display:flex;gap:20px;margin-bottom:8px">
-          <span style="font-weight:700;color:${si ? "#059669" : "#dc2626"}">${si ? "✅ ACCONSENTO" : "❌ NON ACCONSENTO"}</span>
-        </div>
-        ${firmaImg(firma)}
-      </div>`;
-    return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Privacy N° ${numScheda}</title>
-<style>
-  @page { size: A4 portrait; margin: 10mm 12mm; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
-  .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style></head><body>
-<div class="hdr">
-  <div>${logoHtml}<div style="font-size:10px;color:#444;margin-top:3px">${negozio?.indirizzo || ""} — ${negozio?.comune || ""} | P.IVA: ${negozio?.piva || ""}</div></div>
-  <div style="text-align:right"><strong>Scheda N° ${numScheda}</strong><br>${oggi}</div>
-</div>
-<div style="font-size:14px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:2px;border:1px solid #111;padding:3px;margin-bottom:10px">Dichiarazione di Consenso — Privacy</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px">
-  <div><span style="font-size:10px;color:#6b7280">Data</span><br><strong>${oggi}</strong></div>
-  <div><span style="font-size:10px;color:#6b7280">Cognome e Nome</span><br><strong>${nomeCliente}</strong></div>
-</div>
-<div style="font-size:10px;line-height:1.6;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;margin-bottom:10px">
-  L'interessato dichiara di aver ricevuto debita informativa ai sensi dell'art. 13 del Regolamento UE 679/2016 (GDPR) ed esprime il pieno e libero consenso al trattamento dei propri dati personali per la fornitura dei servizi richiesti.
-</div>
-${consensoRow(1, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali su prodotti o servizi offerti dalla società.", privacyDati.consenso1, privacyDati.firma1)}
-${consensoRow(2, `a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali su prodotti o servizi offerti da ${negozio?.nome || "GIOIE E ORO"}.`, privacyDati.consenso2, privacyDati.firma2)}
-${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali di soggetti terzi (business partner).", privacyDati.consenso3, privacyDati.firma3)}
-<div style="font-size:9px;color:#9ca3af;text-align:center;margin-top:10px;border-top:1px solid #e5e7eb;padding-top:6px">
-  Privacy — Scheda N° ${numScheda} — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — ${oggi}
-</div>
+${fotoFronteB64 ? `<div class="foto-section"><div class="foto-label">📄 Fronte documento</div><img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-grande" alt="Fronte"></div>` : ""}
+${fotoRetroB64 ? `<div class="foto-section"><div class="foto-label">📄 Retro documento</div><img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-grande" alt="Retro"></div>` : ""}
+${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;color:#9ca3af">Nessuna foto documento allegata</div>` : ""}
 </body></html>`;
   }
 
@@ -923,18 +877,15 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
       winScheda.document.close();
       setTimeout(() => { winScheda.focus(); winScheda.print(); }, 800);
     }
-    // Foglio 2 + 3: solo nuovo cliente
+    // Foglio 2 e 3: solo nuovo cliente
     if (isNuovoCliente) {
-      // Foglio 2: Documenti
-      setTimeout(() => {
-        const winDoc = window.open("", "_blank");
-        if (winDoc) { winDoc.document.write(buildDocumentiHTML(numScheda)); winDoc.document.close(); setTimeout(() => { winDoc.focus(); winDoc.print(); }, 800); }
-      }, 1800);
-      // Foglio 3: Privacy
-      setTimeout(() => {
-        const winPriv = window.open("", "_blank");
-        if (winPriv) { winPriv.document.write(buildPrivacyHTMLScheda(numScheda, privacyDati)); winPriv.document.close(); setTimeout(() => { winPriv.focus(); winPriv.print(); }, 800); }
-      }, 3600);
+      const hasFotoDoc = fotoDocumento.some(f => f.nome.startsWith("fronte_") || f.nome.startsWith("retro_"));
+      if (hasFotoDoc) {
+        setTimeout(() => {
+          const winDoc = window.open("", "_blank");
+          if (winDoc) { winDoc.document.write(buildDocumentiHTML(numScheda)); winDoc.document.close(); setTimeout(() => { winDoc.focus(); winDoc.print(); }, 800); }
+        }, 1500);
+      }
     }
   }
 
