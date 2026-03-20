@@ -733,21 +733,21 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
 <style>
   @page { size: A4 portrait; margin: 8mm 10mm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; padding: 0; line-height: 1.3; }
+  body { font-family: Arial, sans-serif; font-size: 10.5px; color: #111; margin: 0; padding: 0; line-height: 1.25; }
   .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #111; padding-bottom: 6px; margin-bottom: 6px; }
   .hdr-info { font-size: 10px; line-height: 1.5; color: #444; margin-top: 3px; }
   .scheda-num { font-size: 26px; font-weight: 900; color: #111; text-align: right; line-height: 1; }
   .scheda-data { font-size: 11px; color: #444; text-align: right; }
-  .titolo { font-size: 13px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin: 5px 0; border: 1px solid #111; padding: 3px; }
-  .sec { font-size: 10px; font-weight: 900; text-transform: uppercase; color: #fff; background: #374151; padding: 3px 8px; margin: 5px 0 3px; letter-spacing: 1px; }
+  .titolo { font-size: 12px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin: 4px 0; border: 1px solid #111; padding: 2px; }
+  .sec { font-size: 9.5px; font-weight: 900; text-transform: uppercase; color: #fff; background: #374151; padding: 2px 8px; margin: 4px 0 2px; letter-spacing: 1px; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  td, th { border: 0.5px solid #bbb; padding: 3px 6px; font-size: 11px; vertical-align: top; }
+  td, th { border: 0.5px solid #bbb; padding: 2px 5px; font-size: 10.5px; vertical-align: top; }
   th { background: #f3f4f6; font-weight: 700; width: 130px; white-space: nowrap; }
   .ogg-th { background: #374151; color: #fff; font-size: 10px; font-weight: 700; }
   .totale-row td { font-weight: 900; font-size: 13px; background: #f9fafb; }
   .firma-box { border: 0.5px solid #bbb; border-radius: 4px; padding: 3px 6px; display: inline-block; }
-  .firma-img { max-height: 45px; max-width: 160px; object-fit: contain; display: block; }
-  .dichiarazione { font-size: 9.5px; line-height: 1.5; border: 0.5px solid #bbb; padding: 5px 8px; background: #fffef0; margin: 4px 0; }
+  .firma-img { max-height: 38px; max-width: 140px; object-fit: contain; display: block; }
+  .dichiarazione { font-size: 9px; line-height: 1.4; border: 0.5px solid #bbb; padding: 4px 8px; background: #fffef0; margin: 3px 0; }
   .two-col { display: flex; gap: 8px; }
   .two-col > div { flex: 1; }
   .foto-doc { max-height: 80px; max-width: 130px; object-fit: contain; border: 0.5px solid #ccc; border-radius: 4px; }
@@ -806,10 +806,7 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
   <div>
     <div class="sec">✍️ Dichiarazione</div>
     <div class="dichiarazione">
-      Il/La sottoscritto/a <strong>${customer.cognome} ${customer.nome}</strong> dichiara che:<br>
-      • gli oggetti sono di sua esclusiva proprietà e liberi da vincoli;<br>
-      • autorizza il trattamento dati personali (GDPR 2016/679);<br>
-      • prende atto che gli oggetti saranno ceduti a <strong>Plus Valenza Srl</strong>, Valenza (AL).
+      DICHIARA che l'oggetto/i sopraindicato/i è/sono di sua esclusiva proprietà e che sullo stesso/i non esistono vincoli, garanzie e/o pegni di qualsivoglia natura. Autorizza inoltre il trattamento dei propri dati personali ai sensi del D.Lgs. 196/2003 e del GDPR 2016/679.
     </div>
     <div style="margin-top:4px">
       <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Cliente:</div>
