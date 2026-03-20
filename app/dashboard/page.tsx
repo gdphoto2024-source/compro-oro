@@ -892,6 +892,7 @@ export default function Dashboard() {
       if (!error && ops) {
         setSchede(ops.map((op: any) => ({
           id: op.id,
+          cliente_id: op.cliente_id,
           numero_scheda: op.numero_scheda,
           data_operazione: op.data_operazione,
           mezzo_pagamento: op.mezzo_pagamento,
