@@ -163,69 +163,6 @@ function currency(v: string | number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(v || 0));
 }
 
-// ---- CALCOLO CODICE FISCALE ----
-const CF_CONSONANTI = "BCDFGHJKLMNPQRSTVWXYZ";
-const CF_VOCALI = "AEIOU";
-function cfLettereCognome(s: string): string {
-  s = s.toUpperCase().replace(/[^A-Z]/g, "");
-  const cons = s.split("").filter(c => CF_CONSONANTI.includes(c));
-  const voc = s.split("").filter(c => CF_VOCALI.includes(c));
-  const all = [...cons, ...voc, "X", "X", "X"];
-  return all.slice(0, 3).join("");
-}
-function cfLettereNome(s: string): string {
-  s = s.toUpperCase().replace(/[^A-Z]/g, "");
-  const cons = s.split("").filter(c => CF_CONSONANTI.includes(c));
-  const voc = s.split("").filter(c => CF_VOCALI.includes(c));
-  if (cons.length >= 4) return [cons[0], cons[2], cons[3]].join("");
-  const all = [...cons, ...voc, "X", "X", "X"];
-  return all.slice(0, 3).join("");
-}
-function cfData(dataNascita: string, sesso: string): string {
-  if (!dataNascita || dataNascita.length < 10) return "AAAAAA";
-  const [y, m, d] = dataNascita.split("-").map(Number);
-  const mesi = "ABCDEHLMPRST";
-  const anno = String(y).slice(-2);
-  const mese = mesi[m - 1];
-  const giorno = sesso === "F" ? String(d + 40).padStart(2, "0") : String(d).padStart(2, "0");
-  return anno + mese + giorno;
-}
-// Mappa comuni -> codice catastale (solo calcolo lato client con API)
-async function getCodiceComune(luogo: string): Promise<string> {
-  if (!luogo) return "XXXX";
-  try {
-    const res = await fetch(`https://axqvoqvjlcjobopesuto.supabase.co/functions/v1/comune-cf?comune=${encodeURIComponent(luogo)}`, { method: "GET" });
-    // fallback: usa API comuni italiani
-    const r2 = await fetch(`https://comuni-italiani.it/api/search/?q=${encodeURIComponent(luogo)}&output=json`);
-    if (r2.ok) {
-      const data = await r2.json();
-      if (data?.data?.[0]?.codiceCatastale) return data.data[0].codiceCatastale;
-    }
-  } catch {}
-  return "XXXX";
-}
-function cfControlChar(cf15: string): string {
-  const valDispari = {0:1,1:0,2:5,3:7,4:9,5:13,6:15,7:17,8:19,9:21,A:1,B:0,C:5,D:7,E:9,F:13,G:15,H:17,I:19,J:21,K:2,L:4,M:18,N:20,O:11,P:3,Q:6,R:8,S:12,T:14,U:16,V:10,W:22,X:25,Y:24,Z:23} as any;
-  const valPari = {0:0,1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,A:0,B:1,C:2,D:3,E:4,F:5,G:6,H:7,I:8,J:9,K:10,L:11,M:12,N:13,O:14,P:15,Q:16,R:17,S:18,T:19,U:20,V:21,W:22,X:23,Y:24,Z:25} as any;
-  let somma = 0;
-  for (let i = 0; i < 15; i++) {
-    const c = cf15[i].toUpperCase();
-    somma += (i % 2 === 0) ? valDispari[c] : valPari[c];
-  }
-  return String.fromCharCode(65 + (somma % 26));
-}
-async function calcolaCodiceFiscale(nome: string, cognome: string, dataNascita: string, luogoNascita: string, sesso = "M"): Promise<string> {
-  if (!nome || !cognome || !dataNascita || !luogoNascita) return "";
-  const part1 = cfLettereCognome(cognome);
-  const part2 = cfLettereNome(nome);
-  const part3 = cfData(dataNascita, sesso);
-  const part4 = await getCodiceComune(luogoNascita);
-  if (part4 === "XXXX") return "";
-  const cf15 = (part1 + part2 + part3 + part4).toUpperCase();
-  if (cf15.length !== 15) return "";
-  return cf15 + cfControlChar(cf15);
-}
-
 async function callClaudeOCR(base64Image: string, mediaType: string) {
   const prompt = `Sei un sistema OCR specializzato in documenti di identità italiani.
 Analizza questa immagine del documento e estrai TUTTI i dati visibili.
@@ -545,9 +482,6 @@ export default function SchedaAcquisti() {
   const [showSuggerimenti, setShowSuggerimenti] = useState(false);
   const [clienteSelezionato, setClienteSelezionato] = useState<ClienteDB | null>(null);
   const [avvisoOmonimi, setAvvisoOmonimi] = useState<ClienteDB[]>([]);
-  const [suggerimentiIndirizzo, setSuggerimentiIndirizzo] = useState<any[]>([]);
-  const [showSuggerimentiInd, setShowSuggerimentiInd] = useState(false);
-  const [cfCalcolato, setCfCalcolato] = useState(false);
   const [lightbox, setLightbox] = useState<{ src: string; nome: string } | null>(null);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
@@ -1131,48 +1065,6 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
     if (backRef.current) backRef.current.value = "";
   }
 
-  async function cercaIndirizzo(query: string) {
-    if (query.length < 4) { setSuggerimentiIndirizzo([]); setShowSuggerimentiInd(false); return; }
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ", Italia")}&format=json&addressdetails=1&limit=5&countrycodes=it`, {
-        headers: { "Accept-Language": "it" }
-      });
-      const data = await res.json();
-      if (data?.length > 0) { setSuggerimentiIndirizzo(data); setShowSuggerimentiInd(true); }
-      else { setSuggerimentiIndirizzo([]); setShowSuggerimentiInd(false); }
-    } catch { setSuggerimentiIndirizzo([]); setShowSuggerimentiInd(false); }
-  }
-
-  function selezionaIndirizzo(item: any) {
-    const addr = item.address || {};
-    const via = [addr.road, addr.house_number].filter(Boolean).join(" ");
-    const comune = addr.city || addr.town || addr.village || addr.municipality || "";
-    const provincia = addr.county || addr.state_district || "";
-    const cap = addr.postcode || "";
-    // Estrai sigla provincia (2 lettere)
-    const sigla = provincia.length > 2 ? "" : provincia;
-    setCustomer((p: any) => ({ ...p,
-      indirizzo: via || p.indirizzo,
-      comune: comune || p.comune,
-      provincia: sigla || p.provincia,
-      cap: cap || p.cap,
-    }));
-    setShowSuggerimentiInd(false);
-    setSuggerimentiIndirizzo([]);
-  }
-
-  async function aggiornaCF() {
-    const { nome, cognome, dataNascita, luogoNascita, codiceFiscale } = customer;
-    if (!nome || !cognome || !dataNascita || !luogoNascita) return;
-    if (codiceFiscale && codiceFiscale.length === 16) return; // già presente
-    const cf = await calcolaCodiceFiscale(nome, cognome, dataNascita, luogoNascita);
-    if (cf && cf.length === 16) {
-      setCustomer((p: any) => ({ ...p, codiceFiscale: cf }));
-      setCfCalcolato(true);
-      setTimeout(() => setCfCalcolato(false), 3000);
-    }
-  }
-
   async function cercaClienti(query: string, campo: "cognome" | "nome") {
     if (query.length < 2) { setClientiSuggeriti([]); setShowSuggerimenti(false); setAvvisoOmonimi([]); return; }
     const { data } = await supabase.from("clienti")
@@ -1439,64 +1331,17 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             {([
               ["Nato a", "luogoNascita"],
-              ["Data di nascita", "dataNascita", "date"],
+              ["Data di nascita", "dataNascita", "date"], ["Residente in", "indirizzo"],
+              ["Comune", "comune"], ["Provincia", "provincia"], ["CAP", "cap"],
               ["Tipo documento", "tipoDocumento"], ["Nr. documento", "numeroDocumento"],
               ["Rilasciato da", "enteRilascio"], ["Data rilascio", "dataRilascio", "date"],
-              ["Scadenza", "dataScadenza", "date"],
+              ["Scadenza", "dataScadenza", "date"], ["Codice Fiscale", "codiceFiscale"],
               ["Telefono", "telefono"], ["Email", "email"],
             ] as [string, string, string?][]).map(([label, field, type]) => (
               <Field key={field} label={label}>
-                <input type={type || "text"} style={inp} value={(customer as any)[field]}
-                  onChange={e => {
-                    uc(field, e.target.value);
-                    if (["luogoNascita","dataNascita","nome","cognome"].includes(field)) setTimeout(aggiornaCF, 300);
-                  }} />
+                <input type={type || "text"} style={inp} value={(customer as any)[field]} onChange={e => uc(field, e.target.value)} />
               </Field>
             ))}
-          </div>
-
-          {/* Codice Fiscale con auto-calcolo */}
-          <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            <Field label={cfCalcolato ? "✅ Codice Fiscale (calcolato automaticamente)" : "Codice Fiscale"}>
-              <input style={{ ...inp, background: cfCalcolato ? "#d1fae5" : "#fff", fontFamily: "monospace", fontWeight: 700, fontSize: 15, letterSpacing: 2 }}
-                value={customer.codiceFiscale} onChange={e => uc("codiceFiscale", e.target.value)} />
-            </Field>
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <button type="button" style={{ ...inp, height: 40, background: "#2563eb", color: "#fff", fontWeight: 700, cursor: "pointer", border: "none" }}
-                onClick={aggiornaCF}>🧮 Ricalcola CF</button>
-            </div>
-          </div>
-
-          {/* Indirizzo con autocomplete OpenStreetMap */}
-          <div style={{ marginTop: 14, position: "relative" }}>
-            <Field label="Residente in — via/piazza (inizia a scrivere per suggerimenti)">
-              <input style={inp} value={customer.indirizzo}
-                onChange={e => { uc("indirizzo", e.target.value); cercaIndirizzo(e.target.value); }}
-                onBlur={() => setTimeout(() => setShowSuggerimentiInd(false), 200)}
-                placeholder="Es. Via Roma 1, Torino..." autoComplete="off" />
-            </Field>
-            {showSuggerimentiInd && suggerimentiIndirizzo.length > 0 && (
-              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #2563eb", borderRadius: 8, zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 220, overflowY: "auto" }}>
-                {suggerimentiIndirizzo.map((item, idx) => (
-                  <div key={idx} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 13 }}
-                    onMouseDown={() => selezionaIndirizzo(item)}>
-                    <div style={{ fontWeight: 600 }}>{item.display_name?.split(",").slice(0, 3).join(", ")}</div>
-                    <div style={{ fontSize: 11, color: "#6b7280" }}>{item.address?.postcode} {item.address?.city || item.address?.town || item.address?.village}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 80px 100px", gap: 14 }}>
-            <Field label="Comune">
-              <input style={inp} value={customer.comune} onChange={e => uc("comune", e.target.value)} />
-            </Field>
-            <Field label="Prov.">
-              <input style={inp} value={customer.provincia} onChange={e => uc("provincia", e.target.value)} maxLength={2} />
-            </Field>
-            <Field label="CAP">
-              <input style={inp} value={customer.cap} onChange={e => uc("cap", e.target.value)} maxLength={5} />
-            </Field>
           </div>
           <div style={{ marginTop: 14 }}>
             <Field label="Note cliente"><textarea style={{ ...inp, height: 80, paddingTop: 10 }} value={customer.note} onChange={e => uc("note", e.target.value)} /></Field>
