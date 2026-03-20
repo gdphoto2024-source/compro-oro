@@ -884,8 +884,7 @@ export default function Dashboard() {
           id, cliente_id, numero_scheda, data_operazione, mezzo_pagamento, cro_trn, note_operazione, totale_valore,
           tipo_documento, numero_documento, data_rilascio, data_scadenza, ente_rilascio,
           clienti (nome, cognome, email, codice_fiscale, luogo_nascita, data_nascita, indirizzo, comune, provincia, cap),
-          oggetti (descrizione, materiale, peso_au, peso_ag, valore),
-          foto_scheda (tipo, data_base64, mime_type)
+          oggetti (descrizione, materiale, peso_au, peso_ag, valore)
         `)
         .order("numero_scheda", { ascending: false });
 
@@ -907,7 +906,7 @@ export default function Dashboard() {
           ente_rilascio: op.ente_rilascio || "",
           cliente: op.clienti,
           oggetti: op.oggetti || [],
-          foto: op.foto_scheda || [],
+          foto: [],
         })));
       }
       setLoading(false);
@@ -926,16 +925,26 @@ export default function Dashboard() {
     return matchSearch && matchData;
   });
 
-  function apriPDF(scheda: Scheda) {
-    const html = buildPDFHtml(scheda, negozio);
+  async function apriPDF(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildPDFHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
     win.document.close();
   }
 
-  function stampaPDF(scheda: Scheda) {
-    const html = buildPDFHtml(scheda, negozio);
+  async function caricaFotoScheda(scheda: Scheda): Promise<Scheda> {
+    if (scheda.foto.length > 0) return scheda; // già caricate
+    const { data } = await supabase.from("foto_scheda")
+      .select("tipo, data_base64, mime_type")
+      .eq("operazione_id", scheda.id);
+    return { ...scheda, foto: data || [] };
+  }
+
+  async function stampaPDF(scheda: Scheda) {
+    const s = await caricaFotoScheda(scheda);
+    const html = buildPDFHtml(s, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
@@ -1105,10 +1114,10 @@ export default function Dashboard() {
 
                 {/* Bottoni azioni */}
                 <div style={{ display: "flex", gap: 10, marginTop: 14, paddingTop: 14, borderTop: "1px solid #f3f4f6", flexWrap: "wrap", alignItems: "center" }}>
-                  <button style={btn("#f59e0b", "#fff")} onClick={() => setPopupModifica(scheda)}>✏️ Modifica</button>
+                  <button style={btn("#f59e0b", "#fff")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupModifica(s); }}>✏️ Modifica</button>
                   <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                   <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
-                  <button style={btn("#059669")} onClick={() => setPopupOggetti(scheda)}>📦 Oggetti</button>
+                  <button style={btn("#059669")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupOggetti(s); }}>📦 Oggetti</button>
                   <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
                   <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>
                   <button
