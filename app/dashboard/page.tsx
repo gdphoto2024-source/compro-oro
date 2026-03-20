@@ -881,7 +881,7 @@ export default function Dashboard() {
       const { data: ops, error } = await supabase
         .from("operazioni")
         .select(`
-          id, numero_scheda, data_operazione, mezzo_pagamento, cro_trn, note_operazione, totale_valore,
+          id, cliente_id, numero_scheda, data_operazione, mezzo_pagamento, cro_trn, note_operazione, totale_valore,
           tipo_documento, numero_documento, data_rilascio, data_scadenza, ente_rilascio,
           clienti (nome, cognome, email, codice_fiscale, luogo_nascita, data_nascita, indirizzo, comune, provincia, cap),
           oggetti (descrizione, materiale, peso_au, peso_ag, valore),
