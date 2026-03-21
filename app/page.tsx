@@ -744,8 +744,6 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
         <td style="text-align:right;font-weight:700">${currency(o.valore)}</td>
       </tr>`;
     }).join("");
-    const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
-    const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
     const firmaClienteB64 = firmaDataUrl ? firmaDataUrl.split(",")[1] || firmaDataUrl : "";
     const firmaRicevutaB64 = firmaRicevutaDataUrl ? firmaRicevutaDataUrl.split(",")[1] || firmaRicevutaDataUrl : "";
     const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:50px;max-width:100px;object-fit:contain" alt="Logo">` : `<span style="font-size:16px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
@@ -857,40 +855,51 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
 </body></html>`;
   }
 
+  function buildFotoHTML(titolo: string, numScheda: number, fotografie: { base64: string; mimeType: string; label: string }[]) {
+    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:40px;object-fit:contain" alt="Logo">` : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
+    if (fotografie.length === 0) return "";
+    // 2 foto per pagina, grandi
+    const pagine: { base64: string; mimeType: string; label: string }[][] = [];
+    for (let i = 0; i < fotografie.length; i += 2) pagine.push(fotografie.slice(i, i + 2));
+    const paginaHTML = (foto: { base64: string; mimeType: string; label: string }[], isFirst: boolean) => `
+<div style="page-break-after:always;height:277mm;display:flex;flex-direction:column;padding:8mm 10mm;box-sizing:border-box;">
+  ${isFirst ? `<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px;flex-shrink:0">
+    <div>${logoHtml}</div>
+    <div style="text-align:right;font-size:11px"><strong>Scheda N° ${numScheda}</strong> — ${new Date(dataOperazione).toLocaleDateString("it-IT")}<br><strong>${customer.cognome} ${customer.nome}</strong></div>
+  </div>
+  <div style="font-size:13px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;flex-shrink:0">${titolo}</div>` : ""}
+  <div style="flex:1;display:flex;flex-direction:column;gap:10px;min-height:0">
+    ${foto.map(f => `<div style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#374151;margin-bottom:4px;flex-shrink:0">${f.label}</div>
+      <img src="data:${f.mimeType};base64,${f.base64}" style="width:100%;flex:1;min-height:0;object-fit:contain;border:1px solid #aaa;border-radius:6px;display:block">
+    </div>`).join("")}
+  </div>
+</div>`;
+    return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>${titolo} N° ${numScheda}</title>
+<style>@page{size:A4 portrait;margin:0}*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:0}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>
+${pagine.map((p, i) => paginaHTML(p, i === 0)).join("")}
+</body></html>`;
+  }
+
   function buildDocumentiHTML(numScheda: number) {
     const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
     const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
-    const hasBoth = fotoFronteB64 && fotoRetroB64;
-    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:40px;object-fit:contain" alt="Logo">` : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
-    return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Documenti N° ${numScheda}</title>
-<style>
-  @page { size: A4 portrait; margin: 8mm 10mm; }
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; padding: 0; height: 277mm; display: flex; flex-direction: column; }
-  .hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; }
-  .titolo { font-size: 13px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; flex-shrink: 0; }
-  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 5px 10px; margin-bottom: 8px; font-size: 11px; flex-shrink: 0; }
-  .foto-wrap { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-  .foto-block { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .foto-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 4px; letter-spacing: 1px; flex-shrink: 0; }
-  .foto-grande { width: 100%; height: 100%; object-fit: contain; border: 1px solid #aaa; border-radius: 6px; display: block; flex: 1; min-height: 0; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-</style></head><body>
-<div class="hdr">
-  <div>${logoHtml}</div>
-  <div style="text-align:right;font-size:11px"><strong>Scheda N° ${numScheda}</strong> — ${new Date(dataOperazione).toLocaleDateString("it-IT")}</div>
-</div>
-<div class="titolo">📄 Documenti di Identità</div>
-<div class="info-box">
-  <strong>${customer.cognome} ${customer.nome}</strong> &nbsp;|&nbsp; CF: <strong>${customer.codiceFiscale || "—"}</strong> &nbsp;|&nbsp;
-  ${customer.tipoDocumento} N° <strong>${customer.numeroDocumento}</strong> &nbsp;|&nbsp; Scad.: ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}
-</div>
-<div class="foto-wrap">
-  ${fotoFronteB64 ? `<div class="foto-block"><div class="foto-label">Fronte documento</div><img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-grande" alt="Fronte"></div>` : ""}
-  ${fotoRetroB64 ? `<div class="foto-block"><div class="foto-label">Retro documento</div><img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-grande" alt="Retro"></div>` : ""}
-  ${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;color:#9ca3af;flex:1;display:flex;align-items:center;justify-content:center">Nessuna foto documento allegata</div>` : ""}
-</div>
-</body></html>`;
+    const fotografie = [
+      fotoFronteB64 ? { base64: fotoFronteB64, mimeType: "image/jpeg", label: "Fronte documento" } : null,
+      fotoRetroB64 ? { base64: fotoRetroB64, mimeType: "image/jpeg", label: "Retro documento" } : null,
+    ].filter(Boolean) as { base64: string; mimeType: string; label: string }[];
+    return buildFotoHTML("📄 Foto Documento di Identità", numScheda, fotografie);
+  }
+
+  function buildOggettiHTML(numScheda: number) {
+    const fotografie = items.flatMap((it, idx) =>
+      it.foto.map((f, j) => ({
+        base64: f.base64,
+        mimeType: f.mimeType,
+        label: `Oggetto ${idx+1}${it.foto.length > 1 ? " — foto " + (j+1) : ""}${it.descrizione ? ": " + it.descrizione : ""}`,
+      }))
+    );
+    return buildFotoHTML("📦 Foto Oggetti Acquistati", numScheda, fotografie);
   }
 
   function buildPrivacyHTMLScheda(numScheda: number, privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) {
@@ -959,27 +968,31 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
   function stampaPDFDopoSalvataggio(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }, numScheda: number, isNuovoCliente: boolean) {
     const htmlScheda = buildSchedaHTML(numScheda, privacyDati);
     const htmlDoc = buildDocumentiHTML(numScheda);
+    const htmlOgg = buildOggettiHTML(numScheda);
     const htmlPriv = buildPrivacyHTMLScheda(numScheda, privacyDati);
-
-    // Su Android apriamo anteprima + offriamo download per Epson iPrint
     const isAndroid = /android/i.test(navigator.userAgent);
 
     // Foglio 1: Scheda (sempre)
     apriInNuovaFinestra(htmlScheda, "Scheda", true);
 
-    if (isNuovoCliente) {
-      setTimeout(() => apriInNuovaFinestra(htmlDoc, "Documenti", true), 1800);
-      setTimeout(() => apriInNuovaFinestra(htmlPriv, "Privacy", true), 3600);
-    }
+    // Foglio 2: Foto documento (sempre se ci sono)
+    const hasFotoDoc = fotoDocumento.some(f => f.nome.startsWith("fronte_") || f.nome.startsWith("retro_"));
+    if (hasFotoDoc && htmlDoc) setTimeout(() => apriInNuovaFinestra(htmlDoc, "Documenti", true), 1800);
 
-    // Su Android: scarica anche i file HTML per stampa con Epson iPrint
+    // Foglio 3: Foto oggetti (sempre se ci sono)
+    const hasFotoOgg = items.some(it => it.foto.length > 0);
+    if (hasFotoOgg && htmlOgg) setTimeout(() => apriInNuovaFinestra(htmlOgg, "Oggetti", true), 3600);
+
+    // Foglio 4: Privacy (solo nuovo cliente)
+    if (isNuovoCliente) setTimeout(() => apriInNuovaFinestra(htmlPriv, "Privacy", true), 5400);
+
+    // Android: scarica anche i file
     if (isAndroid) {
       setTimeout(() => {
         scaricaHTMLComePDF(htmlScheda, `scheda_${numScheda}.html`);
-        if (isNuovoCliente) {
-          setTimeout(() => scaricaHTMLComePDF(htmlDoc, `documenti_${numScheda}.html`), 500);
-          setTimeout(() => scaricaHTMLComePDF(htmlPriv, `privacy_${numScheda}.html`), 1000);
-        }
+        if (hasFotoDoc) setTimeout(() => scaricaHTMLComePDF(htmlDoc, `documenti_${numScheda}.html`), 500);
+        if (hasFotoOgg) setTimeout(() => scaricaHTMLComePDF(htmlOgg, `oggetti_${numScheda}.html`), 1000);
+        if (isNuovoCliente) setTimeout(() => scaricaHTMLComePDF(htmlPriv, `privacy_${numScheda}.html`), 1500);
       }, 1000);
     }
   }
