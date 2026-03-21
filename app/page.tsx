@@ -450,13 +450,15 @@ function PrivacyPopup({ negozio, cliente, onConferma, onAnnulla }: {
 }
 
 export default function SchedaAcquisti() {
-  const [customer, setCustomer] = useState({ ...emptyCustomer });
-  const [items, setItems] = useState([{ ...emptyItem }]);
-  const [dataOperazione, setDataOperazione] = useState(todayISO());
-  const [mezzoPagamento, setMezzoPagamento] = useState("contanti");
-  const [croTrn, setCroTrn] = useState("");
-  const [totaleValore, setTotaleValore] = useState("");
-  const [noteOperazione, setNoteOperazione] = useState("");
+  // Carica bozza salvata dal localStorage
+  const bozza = typeof window !== "undefined" ? (() => { try { return JSON.parse(localStorage.getItem("scheda_bozza") || "null"); } catch { return null; } })() : null;
+  const [customer, setCustomer] = useState(bozza?.customer || { ...emptyCustomer });
+  const [items, setItems] = useState(bozza?.items || [{ ...emptyItem }]);
+  const [dataOperazione, setDataOperazione] = useState(bozza?.dataOperazione || todayISO());
+  const [mezzoPagamento, setMezzoPagamento] = useState(bozza?.mezzoPagamento || "contanti");
+  const [croTrn, setCroTrn] = useState(bozza?.croTrn || "");
+  const [totaleValore, setTotaleValore] = useState(bozza?.totaleValore || "");
+  const [noteOperazione, setNoteOperazione] = useState(bozza?.noteOperazione || "");
   const [numeroScheda, setNumeroScheda] = useState<number | null>(null);
   const [frontFile, setFrontFile] = useState<File | null>(null);
   const [backFile, setBackFile] = useState<File | null>(null);
@@ -470,7 +472,10 @@ export default function SchedaAcquisti() {
   const [negozio, setNegozio] = useState<NegozioInfo | null>(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [firmaPrivacyBase64, setFirmaPrivacyBase64] = useState<string | null>(null);
-  const [status, setStatus] = useState({ text: "Pronto. Carica i documenti per iniziare.", type: "idle" });
+  const _bozzaData = typeof window !== "undefined" ? (() => { try { return JSON.parse(localStorage.getItem("scheda_bozza") || "null"); } catch { return null; } })() : null;
+  const [status, setStatus] = useState(_bozzaData?.customer?.cognome
+    ? { text: `📝 Bozza recuperata: ${_bozzaData.customer.cognome} ${_bozzaData.customer.nome} — salvata il ${new Date(_bozzaData.salvato).toLocaleString("it-IT")}. Premi "🔄 Nuova scheda" per azzerarla.`, type: "success" }
+    : { text: "Pronto. Carica i documenti per iniziare.", type: "idle" });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -482,9 +487,24 @@ export default function SchedaAcquisti() {
   const [showSuggerimenti, setShowSuggerimenti] = useState(false);
   const [clienteSelezionato, setClienteSelezionato] = useState<ClienteDB | null>(null);
   const [avvisoOmonimi, setAvvisoOmonimi] = useState<ClienteDB[]>([]);
+  const [suggerimentiIndirizzo, setSuggerimentiIndirizzo] = useState<any[]>([]);
+  const [showSuggerimentiInd, setShowSuggerimentiInd] = useState(false);
+
   const [lightbox, setLightbox] = useState<{ src: string; nome: string } | null>(null);
 
   const totale = useMemo(() => items.reduce((a, i) => a + Number(i.valore || 0), 0), [items]);
+
+  // Salva bozza automaticamente nel localStorage (escluse foto per spazio)
+  useEffect(() => {
+    try {
+      const itemsSenzaFoto = items.map(it => ({ ...it, foto: [] }));
+      localStorage.setItem("scheda_bozza", JSON.stringify({
+        customer, items: itemsSenzaFoto,
+        dataOperazione, mezzoPagamento, croTrn, totaleValore, noteOperazione,
+        salvato: new Date().toISOString(),
+      }));
+    } catch {}
+  }, [customer, items, dataOperazione, mezzoPagamento, croTrn, totaleValore, noteOperazione]);
 
   // Funzione per aggiornare nr articoli e ridimensionare pesiPezzi
   function uiNrArticoli(idx: number, nr: string) {
@@ -785,7 +805,6 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
       <tr><th>Data rilascio</th><td>${customer.dataRilascio ? new Date(customer.dataRilascio).toLocaleDateString("it-IT") : "—"}</td></tr>
       <tr><th>Scadenza</th><td>${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}</td></tr>
     </table>
-    ${(fotoFronteB64 || fotoRetroB64) ? `<div style="display:flex;gap:6px;margin-top:4px">${fotoFronteB64 ? `<img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-doc" alt="Fronte">` : ""}${fotoRetroB64 ? `<img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-doc" alt="Retro">` : ""}</div>` : ""}
   </div>
 </div>
 
@@ -841,51 +860,127 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
   function buildDocumentiHTML(numScheda: number) {
     const fotoFronteB64 = fotoDocumento.find(f => f.nome.startsWith("fronte_"))?.base64 || "";
     const fotoRetroB64 = fotoDocumento.find(f => f.nome.startsWith("retro_"))?.base64 || "";
-    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:50px;object-fit:contain" alt="Logo">` : `<span style="font-size:16px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
+    const hasBoth = fotoFronteB64 && fotoRetroB64;
+    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:40px;object-fit:contain" alt="Logo">` : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
     return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Documenti N° ${numScheda}</title>
 <style>
-  @page { size: A4 portrait; margin: 10mm; }
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-  .hdr { display: flex; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 12px; }
-  .titolo { font-size: 14px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
-  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; }
-  .foto-section { margin-bottom: 20px; }
-  .foto-label { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 8px; letter-spacing: 1px; }
-  .foto-grande { width: 100%; max-height: 340px; object-fit: contain; border: 1px solid #ccc; border-radius: 8px; display: block; }
+  @page { size: A4 portrait; margin: 8mm 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; padding: 0; height: 277mm; display: flex; flex-direction: column; }
+  .hdr { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px; flex-shrink: 0; }
+  .titolo { font-size: 13px; font-weight: 900; text-align: center; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px; flex-shrink: 0; }
+  .info-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 5px 10px; margin-bottom: 8px; font-size: 11px; flex-shrink: 0; }
+  .foto-wrap { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .foto-block { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .foto-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #374151; margin-bottom: 4px; letter-spacing: 1px; flex-shrink: 0; }
+  .foto-grande { width: 100%; height: 100%; object-fit: contain; border: 1px solid #aaa; border-radius: 6px; display: block; flex: 1; min-height: 0; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style></head><body>
 <div class="hdr">
   <div>${logoHtml}</div>
-  <div style="text-align:right"><strong>Scheda N° ${numScheda}</strong><br>${new Date(dataOperazione).toLocaleDateString("it-IT")}</div>
+  <div style="text-align:right;font-size:11px"><strong>Scheda N° ${numScheda}</strong> — ${new Date(dataOperazione).toLocaleDateString("it-IT")}</div>
 </div>
-<div class="titolo">Documenti di Identità</div>
+<div class="titolo">📄 Documenti di Identità</div>
 <div class="info-box">
-  <strong>${customer.cognome} ${customer.nome}</strong> — CF: ${customer.codiceFiscale || "—"}<br>
-  ${customer.tipoDocumento} N° ${customer.numeroDocumento} — Scadenza: ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}
+  <strong>${customer.cognome} ${customer.nome}</strong> &nbsp;|&nbsp; CF: <strong>${customer.codiceFiscale || "—"}</strong> &nbsp;|&nbsp;
+  ${customer.tipoDocumento} N° <strong>${customer.numeroDocumento}</strong> &nbsp;|&nbsp; Scad.: ${customer.dataScadenza ? new Date(customer.dataScadenza).toLocaleDateString("it-IT") : "—"}
 </div>
-${fotoFronteB64 ? `<div class="foto-section"><div class="foto-label">📄 Fronte documento</div><img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-grande" alt="Fronte"></div>` : ""}
-${fotoRetroB64 ? `<div class="foto-section"><div class="foto-label">📄 Retro documento</div><img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-grande" alt="Retro"></div>` : ""}
-${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;color:#9ca3af">Nessuna foto documento allegata</div>` : ""}
+<div class="foto-wrap">
+  ${fotoFronteB64 ? `<div class="foto-block"><div class="foto-label">Fronte documento</div><img src="data:image/jpeg;base64,${fotoFronteB64}" class="foto-grande" alt="Fronte"></div>` : ""}
+  ${fotoRetroB64 ? `<div class="foto-block"><div class="foto-label">Retro documento</div><img src="data:image/jpeg;base64,${fotoRetroB64}" class="foto-grande" alt="Retro"></div>` : ""}
+  ${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;color:#9ca3af;flex:1;display:flex;align-items:center;justify-content:center">Nessuna foto documento allegata</div>` : ""}
+</div>
 </body></html>`;
   }
 
+  function buildPrivacyHTMLScheda(numScheda: number, privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }) {
+    const logoHtml = negozio?.logo_base64 ? `<img src="data:image/png;base64,${negozio.logo_base64}" style="max-height:45px;object-fit:contain" alt="Logo">` : `<span style="font-size:15px;font-weight:800">${negozio?.nome || "Compro Oro"}</span>`;
+    const oggi = new Date().toLocaleDateString("it-IT");
+    const nomeCliente = `${customer.cognome} ${customer.nome}`.trim();
+    const firmaImg = (b64: string) => b64 ? `<img src="data:image/png;base64,${b64}" style="max-height:55px;max-width:200px;object-fit:contain;border:1px solid #ccc;border-radius:4px;background:#fafafa;display:block">` : "<div style='height:55px;border:1px dashed #ccc;border-radius:4px'></div>";
+    const consensoRow = (n: number, testo: string, si: boolean, firma: string) => `
+      <div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#6b7280;margin-bottom:6px">Consenso ${n}</div>
+        <div style="font-size:11px;line-height:1.6;color:#374151;margin-bottom:8px">${testo}</div>
+        <div style="display:flex;gap:20px;margin-bottom:8px">
+          <span style="font-weight:700;color:${si ? "#059669" : "#dc2626"}">${si ? "✅ ACCONSENTO" : "❌ NON ACCONSENTO"}</span>
+        </div>
+        ${firmaImg(firma)}
+      </div>`;
+    return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><title>Privacy N° ${numScheda}</title>
+<style>
+  @page { size: A4 portrait; margin: 10mm 12mm; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
+  .hdr { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head><body>
+<div class="hdr">
+  <div>${logoHtml}<div style="font-size:10px;color:#444;margin-top:3px">${negozio?.indirizzo || ""} — ${negozio?.comune || ""} | P.IVA: ${negozio?.piva || ""}</div></div>
+  <div style="text-align:right"><strong>Scheda N° ${numScheda}</strong><br>${oggi}</div>
+</div>
+<div style="font-size:14px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:2px;border:1px solid #111;padding:3px;margin-bottom:10px">Dichiarazione di Consenso — Privacy</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px">
+  <div><span style="font-size:10px;color:#6b7280">Data</span><br><strong>${oggi}</strong></div>
+  <div><span style="font-size:10px;color:#6b7280">Cognome e Nome</span><br><strong>${nomeCliente}</strong></div>
+</div>
+<div style="font-size:10px;line-height:1.6;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;margin-bottom:10px">
+  L'interessato dichiara di aver ricevuto debita informativa ai sensi dell'art. 13 del Regolamento UE 679/2016 (GDPR) ed esprime il pieno e libero consenso al trattamento dei propri dati personali per la fornitura dei servizi richiesti.
+</div>
+${consensoRow(1, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali su prodotti o servizi offerti dalla società.", privacyDati.consenso1, privacyDati.firma1)}
+${consensoRow(2, `a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali su prodotti o servizi offerti da ${negozio?.nome || "GIOIE E ORO"}.`, privacyDati.consenso2, privacyDati.firma2)}
+${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, newsletter, comunicazioni commerciali di soggetti terzi (business partner).", privacyDati.consenso3, privacyDati.firma3)}
+<div style="font-size:9px;color:#9ca3af;text-align:center;margin-top:10px;border-top:1px solid #e5e7eb;padding-top:6px">
+  Privacy — Scheda N° ${numScheda} — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — ${oggi}
+</div>
+</body></html>`;
+  }
+
+  function apriInNuovaFinestra(html: string, titolo: string, stampa: boolean) {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    if (stampa) setTimeout(() => { win.focus(); win.print(); }, 800);
+  }
+
+  function scaricaHTMLComePDF(html: string, nomeFile: string) {
+    // Crea blob HTML e scarica — apribile con qualsiasi app di stampa inclusa Epson iPrint
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeFile;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function stampaPDFDopoSalvataggio(privacyDati: { firma1: string; firma2: string; firma3: string; consenso1: boolean; consenso2: boolean; consenso3: boolean }, numScheda: number, isNuovoCliente: boolean) {
+    const htmlScheda = buildSchedaHTML(numScheda, privacyDati);
+    const htmlDoc = buildDocumentiHTML(numScheda);
+    const htmlPriv = buildPrivacyHTMLScheda(numScheda, privacyDati);
+
+    // Su Android apriamo anteprima + offriamo download per Epson iPrint
+    const isAndroid = /android/i.test(navigator.userAgent);
+
     // Foglio 1: Scheda (sempre)
-    const winScheda = window.open("", "_blank");
-    if (winScheda) {
-      winScheda.document.write(buildSchedaHTML(numScheda, privacyDati));
-      winScheda.document.close();
-      setTimeout(() => { winScheda.focus(); winScheda.print(); }, 800);
-    }
-    // Foglio 2 e 3: solo nuovo cliente
+    apriInNuovaFinestra(htmlScheda, "Scheda", true);
+
     if (isNuovoCliente) {
-      const hasFotoDoc = fotoDocumento.some(f => f.nome.startsWith("fronte_") || f.nome.startsWith("retro_"));
-      if (hasFotoDoc) {
-        setTimeout(() => {
-          const winDoc = window.open("", "_blank");
-          if (winDoc) { winDoc.document.write(buildDocumentiHTML(numScheda)); winDoc.document.close(); setTimeout(() => { winDoc.focus(); winDoc.print(); }, 800); }
-        }, 1500);
-      }
+      setTimeout(() => apriInNuovaFinestra(htmlDoc, "Documenti", true), 1800);
+      setTimeout(() => apriInNuovaFinestra(htmlPriv, "Privacy", true), 3600);
+    }
+
+    // Su Android: scarica anche i file HTML per stampa con Epson iPrint
+    if (isAndroid) {
+      setTimeout(() => {
+        scaricaHTMLComePDF(htmlScheda, `scheda_${numScheda}.html`);
+        if (isNuovoCliente) {
+          setTimeout(() => scaricaHTMLComePDF(htmlDoc, `documenti_${numScheda}.html`), 500);
+          setTimeout(() => scaricaHTMLComePDF(htmlPriv, `privacy_${numScheda}.html`), 1000);
+        }
+      }, 1000);
     }
   }
 
@@ -991,8 +1086,10 @@ ${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;
       const privacyNote = "PRIVACY: consenso1=" + (privacyDati.consenso1?"SI":"NO") + " consenso2=" + (privacyDati.consenso2?"SI":"NO") + " consenso3=" + (privacyDati.consenso3?"SI":"NO");
       await supabase.from("operazioni").update({ note_operazione: (noteOperazione ? noteOperazione + " | " : "") + privacyNote }).eq("id", operazioneId);
 
+      try { localStorage.removeItem("scheda_bozza"); } catch {}
       setSavedOk(true);
-      setStatus({ text: `✅ Scheda n° ${numeroScheda} salvata! Apertura stampa...`, type: "success" });
+      const isAndroid = /android/i.test(navigator.userAgent);
+      setStatus({ text: isAndroid ? `✅ Scheda n° ${numeroScheda} salvata! File scaricati — aprili con Epson iPrint per stampare.` : `✅ Scheda n° ${numeroScheda} salvata! Apertura stampa...`, type: "success" });
       const numAttuale = numeroScheda || 1;
       setNumeroScheda(prev => (prev || 0) + 1);
       setTimeout(() => stampaPDFDopoSalvataggio(privacyDati, numAttuale, !clienteSelezionato), 300);
@@ -1005,15 +1102,47 @@ ${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;
   }
 
   function reset() {
-    setCustomer({ ...emptyCustomer }); setItems([{ ...emptyItem }]);
+    try { localStorage.removeItem("scheda_bozza"); } catch {}
+    setCustomer({ ...emptyCustomer }); setItems([{ ...emptyItem, pesiPezzi: [""] }]);
     setDataOperazione(todayISO()); setMezzoPagamento("contanti");
     setCroTrn(""); setTotaleValore(""); setNoteOperazione("");
     setFrontFile(null); setBackFile(null); setFrontPreview(""); setBackPreview("");
     setFrontRawText(""); setBackRawText(""); setFotoDocumento([]);
     setFirmaDataUrl(null); setFirmaPrivacyBase64(null); setSavedOk(false);
+    setClienteSelezionato(null); setAvvisoOmonimi([]);
     setStatus({ text: "Nuova scheda pronta.", type: "idle" });
     if (frontRef.current) frontRef.current.value = "";
     if (backRef.current) backRef.current.value = "";
+  }
+
+  async function cercaIndirizzo(query: string) {
+    if (query.length < 4) { setSuggerimentiIndirizzo([]); setShowSuggerimentiInd(false); return; }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ", Italia")}&format=json&addressdetails=1&limit=5&countrycodes=it`, {
+        headers: { "Accept-Language": "it" }
+      });
+      const data = await res.json();
+      if (data?.length > 0) { setSuggerimentiIndirizzo(data); setShowSuggerimentiInd(true); }
+      else { setSuggerimentiIndirizzo([]); setShowSuggerimentiInd(false); }
+    } catch { setSuggerimentiIndirizzo([]); setShowSuggerimentiInd(false); }
+  }
+
+  function selezionaIndirizzo(item: any) {
+    const addr = item.address || {};
+    const via = [addr.road, addr.house_number].filter(Boolean).join(" ");
+    const comune = addr.city || addr.town || addr.village || addr.municipality || "";
+    const provincia = addr.county || addr.state_district || "";
+    const cap = addr.postcode || "";
+    // Estrai sigla provincia (2 lettere)
+    const sigla = provincia.length > 2 ? "" : provincia;
+    setCustomer((p: any) => ({ ...p,
+      indirizzo: via || p.indirizzo,
+      comune: comune || p.comune,
+      provincia: sigla || p.provincia,
+      cap: cap || p.cap,
+    }));
+    setShowSuggerimentiInd(false);
+    setSuggerimentiIndirizzo([]);
   }
 
   async function cercaClienti(query: string, campo: "cognome" | "nome") {
@@ -1282,17 +1411,59 @@ ${!fotoFronteB64 && !fotoRetroB64 ? `<div style="text-align:center;padding:60px;
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
             {([
               ["Nato a", "luogoNascita"],
-              ["Data di nascita", "dataNascita", "date"], ["Residente in", "indirizzo"],
-              ["Comune", "comune"], ["Provincia", "provincia"], ["CAP", "cap"],
+              ["Data di nascita", "dataNascita", "date"],
               ["Tipo documento", "tipoDocumento"], ["Nr. documento", "numeroDocumento"],
               ["Rilasciato da", "enteRilascio"], ["Data rilascio", "dataRilascio", "date"],
-              ["Scadenza", "dataScadenza", "date"], ["Codice Fiscale", "codiceFiscale"],
+              ["Scadenza", "dataScadenza", "date"],
               ["Telefono", "telefono"], ["Email", "email"],
             ] as [string, string, string?][]).map(([label, field, type]) => (
               <Field key={field} label={label}>
-                <input type={type || "text"} style={inp} value={(customer as any)[field]} onChange={e => uc(field, e.target.value)} />
+                <input type={type || "text"} style={inp} value={(customer as any)[field]}
+                  onChange={e => uc(field, e.target.value)} />
               </Field>
             ))}
+          </div>
+
+          {/* Codice Fiscale manuale */}
+          <div style={{ marginTop: 14 }}>
+            <Field label="Codice Fiscale">
+              <input style={{ ...inp, fontFamily: "monospace", fontWeight: 700, fontSize: 15, letterSpacing: 2, textTransform: "uppercase" }}
+                value={customer.codiceFiscale}
+                onChange={e => uc("codiceFiscale", e.target.value.toUpperCase())}
+                maxLength={16} placeholder="Es. RSSMRA80A01L219K" />
+            </Field>
+          </div>
+
+          {/* Indirizzo con autocomplete OpenStreetMap */}
+          <div style={{ marginTop: 14, position: "relative" }}>
+            <Field label="Residente in — via/piazza (inizia a scrivere per suggerimenti)">
+              <input style={inp} value={customer.indirizzo}
+                onChange={e => { uc("indirizzo", e.target.value); cercaIndirizzo(e.target.value); }}
+                onBlur={() => setTimeout(() => setShowSuggerimentiInd(false), 200)}
+                placeholder="Es. Via Roma 1, Torino..." autoComplete="off" />
+            </Field>
+            {showSuggerimentiInd && suggerimentiIndirizzo.length > 0 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1.5px solid #2563eb", borderRadius: 8, zIndex: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", maxHeight: 220, overflowY: "auto" }}>
+                {suggerimentiIndirizzo.map((item, idx) => (
+                  <div key={idx} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 13 }}
+                    onMouseDown={() => selezionaIndirizzo(item)}>
+                    <div style={{ fontWeight: 600 }}>{item.display_name?.split(",").slice(0, 3).join(", ")}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280" }}>{item.address?.postcode} {item.address?.city || item.address?.town || item.address?.village}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 80px 100px", gap: 14 }}>
+            <Field label="Comune">
+              <input style={inp} value={customer.comune} onChange={e => uc("comune", e.target.value)} />
+            </Field>
+            <Field label="Prov.">
+              <input style={inp} value={customer.provincia} onChange={e => uc("provincia", e.target.value)} maxLength={2} />
+            </Field>
+            <Field label="CAP">
+              <input style={inp} value={customer.cap} onChange={e => uc("cap", e.target.value)} maxLength={5} />
+            </Field>
           </div>
           <div style={{ marginTop: 14 }}>
             <Field label="Note cliente"><textarea style={{ ...inp, height: 80, paddingTop: 10 }} value={customer.note} onChange={e => uc("note", e.target.value)} /></Field>
