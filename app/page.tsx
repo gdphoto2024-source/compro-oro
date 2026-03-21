@@ -768,7 +768,7 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
   .dichiarazione { font-size: 9px; line-height: 1.4; border: 0.5px solid #bbb; padding: 4px 8px; background: #fffef0; margin: 3px 0; }
   .two-col { display: flex; gap: 8px; }
   .two-col > div { flex: 1; }
-  .foto-doc { max-height: 80px; max-width: 130px; object-fit: contain; border: 0.5px solid #ccc; border-radius: 4px; }
+  /* .foto-doc rimossa dalla scheda - le foto sono in fogli separati */
   .consensi { font-size: 10px; }
   .footer { font-size: 9px; color: #9ca3af; text-align: center; margin-top: 6px; border-top: 0.5px solid #e5e7eb; padding-top: 4px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
@@ -841,14 +841,6 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
     </div>
     ${negozio?.firma_base64 ? `<div style="margin-top:6px"><div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Titolare:</div><img src="data:image/png;base64,${negozio.firma_base64}" class="firma-img"></div>` : ""}
   </div>
-</div>
-
-<!-- PRIVACY CONSENSI -->
-<div class="sec">🔒 Privacy</div>
-<div class="consensi" style="display:flex;gap:16px">
-  <span>1. Trattamento dati: <strong>${privacyDati.consenso1 ? "✅ SI" : "❌ NO"}</strong></span>
-  <span>2. Comunicazioni: <strong>${privacyDati.consenso2 ? "✅ SI" : "❌ NO"}</strong></span>
-  <span>3. Soggetti terzi: <strong>${privacyDati.consenso3 ? "✅ SI" : "❌ NO"}</strong></span>
 </div>
 
 <div class="footer">Scheda N° ${numScheda} — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — ${new Date().toLocaleDateString("it-IT")}</div>
@@ -944,12 +936,30 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
 </body></html>`;
   }
 
-  function apriInNuovaFinestra(html: string, titolo: string, stampa: boolean) {
+  function apriInNuovaFinestra(html: string, titolo: string, stampa: boolean, copie = 1) {
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(html);
+    // Inietta CSS per 3 copie se richiesto
+    const htmlConCopie = copie > 1
+      ? html.replace("</style>", `  @page { size: A4 portrait; } </style>`) + `<script>window._copie=${copie};</script>`
+      : html;
+    win.document.write(htmlConCopie);
     win.document.close();
-    if (stampa) setTimeout(() => { win.focus(); win.print(); }, 800);
+    if (stampa) {
+      if (copie > 1) {
+        // Apri dialogo stampa nativo con copies pre-impostato
+        setTimeout(() => {
+          win.focus();
+          // Tenta di pre-impostare le copie tramite CSS @page (funziona su alcuni browser)
+          const style = win.document.createElement("style");
+          style.textContent = \`@page { size: A4; }\`;
+          win.document.head.appendChild(style);
+          win.print();
+        }, 800);
+      } else {
+        setTimeout(() => { win.focus(); win.print(); }, 800);
+      }
+    }
   }
 
   function scaricaHTMLComePDF(html: string, nomeFile: string) {
@@ -972,8 +982,8 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
     const htmlPriv = buildPrivacyHTMLScheda(numScheda, privacyDati);
     const isAndroid = /android/i.test(navigator.userAgent);
 
-    // Foglio 1: Scheda (sempre)
-    apriInNuovaFinestra(htmlScheda, "Scheda", true);
+    // Foglio 1: Scheda (sempre) — 3 copie
+    apriInNuovaFinestra(htmlScheda, "Scheda", true, 3);
 
     // Foglio 2: Foto documento (sempre se ci sono)
     const hasFotoDoc = fotoDocumento.some(f => f.nome.startsWith("fronte_") || f.nome.startsWith("retro_"));
@@ -983,8 +993,7 @@ ${consensoRow(3, "a ricevere via e-mail, posta, WhatsApp, contatto telefonico, n
     const hasFotoOgg = items.some(it => it.foto.length > 0);
     if (hasFotoOgg && htmlOgg) setTimeout(() => apriInNuovaFinestra(htmlOgg, "Oggetti", true), 3600);
 
-    // Foglio 4: Privacy (solo nuovo cliente)
-    if (isNuovoCliente) setTimeout(() => apriInNuovaFinestra(htmlPriv, "Privacy", true), 5400);
+    // Foglio 4: Privacy NON si stampa automaticamente — solo da dashboard
 
     // Android: scarica anche i file
     if (isAndroid) {
