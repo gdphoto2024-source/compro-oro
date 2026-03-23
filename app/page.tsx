@@ -818,29 +818,21 @@ Rispondi SOLO con questo JSON (nessun testo prima/dopo, nessun markdown, nessun 
   </tr>
 </table>
 
-<!-- DICHIARAZIONE + FIRME su 2 colonne -->
-<div class="two-col" style="margin-top:4px">
-  <div>
-    <div class="sec">✍️ Dichiarazione</div>
-    <div class="dichiarazione">
-      DICHIARA che l'oggetto/i sopraindicato/i è/sono di sua esclusiva proprietà e che sullo stesso/i non esistono vincoli, garanzie e/o pegni di qualsivoglia natura. Autorizza inoltre il trattamento dei propri dati personali ai sensi del D.Lgs. 196/2003 e del GDPR 2016/679.
-    </div>
-    <div style="margin-top:4px">
-      <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Cliente:</div>
-      ${firmaClienteB64 ? `<img src="data:image/png;base64,${firmaClienteB64}" class="firma-img">` : "<div style='height:40px;border:0.5px dashed #ccc'></div>"}
-    </div>
+<!-- DICHIARAZIONE + FIRME -->
+<div class="sec" style="margin-top:4px">✍️ Dichiarazione e Firme</div>
+<div style="border:0.5px solid #bbb;border-radius:4px;padding:5px 8px;background:#fffef0;font-size:9px;line-height:1.4;margin-bottom:4px">
+  DICHIARA che l'oggetto/i sopraindicato/i è/sono di sua esclusiva proprietà e che sullo stesso/i non esistono vincoli, garanzie e/o pegni di qualsivoglia natura. Autorizza inoltre il trattamento dei propri dati personali ai sensi del D.Lgs. 196/2003 e del GDPR 2016/679.
+</div>
+<div style="display:flex;gap:6px;margin-top:3px">
+  <div style="flex:1;border:0.5px solid #bbb;border-radius:4px;padding:4px 6px">
+    <div style="font-size:9px;font-weight:700;color:#374151;margin-bottom:2px">Firma Cliente</div>
+    ${firmaClienteB64 ? `<img src="data:image/png;base64,${firmaClienteB64}" style="max-height:28px;max-width:120px;object-fit:contain;display:block">` : "<div style='height:28px'></div>"}
   </div>
-  <div>
-    <div class="sec">🧾 Ricevuta Pagamento</div>
-    <div class="dichiarazione">
-      Il cliente firma per ricevuta della presente scheda e conferma di aver ricevuto <strong>${currency(totale)}</strong> mediante <strong>${mezzoPagamento}</strong>${croTrn ? " (CRO/TRN: " + croTrn + ")" : ""}.
-    </div>
-    <div style="margin-top:4px">
-      <div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Ricevuta:</div>
-      ${firmaRicevutaB64 ? `<img src="data:image/png;base64,${firmaRicevutaB64}" class="firma-img">` : "<div style='height:40px;border:0.5px dashed #ccc'></div>"}
-    </div>
-    ${negozio?.firma_base64 ? `<div style="margin-top:6px"><div style="font-size:10px;font-weight:700;color:#374151;margin-bottom:2px">Firma Titolare:</div><img src="data:image/png;base64,${negozio.firma_base64}" class="firma-img"></div>` : ""}
+  <div style="flex:1;border:0.5px solid #bbb;border-radius:4px;padding:4px 6px">
+    <div style="font-size:9px;font-weight:700;color:#374151;margin-bottom:2px">Firma Ricevuta — ${currency(totale)} via ${mezzoPagamento}</div>
+    ${firmaRicevutaB64 ? `<img src="data:image/png;base64,${firmaRicevutaB64}" style="max-height:28px;max-width:120px;object-fit:contain;display:block">` : "<div style='height:28px'></div>"}
   </div>
+  ${negozio?.firma_base64 ? `<div style="flex:1;border:0.5px solid #bbb;border-radius:4px;padding:4px 6px"><div style="font-size:9px;font-weight:700;color:#374151;margin-bottom:2px">Firma Titolare</div><img src="data:image/png;base64,${negozio.firma_base64}" style="max-height:28px;max-width:120px;object-fit:contain;display:block"></div>` : ""}
 </div>
 
 <div class="footer">Scheda N° ${numScheda} — ${negozio?.nome || ""} — P.IVA ${negozio?.piva || ""} — ${new Date().toLocaleDateString("it-IT")}</div>
