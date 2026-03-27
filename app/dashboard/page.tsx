@@ -956,12 +956,10 @@ export default function Dashboard() {
   });
 
   async function apriPDF(scheda: Scheda) {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
     const s = await caricaFotoScheda(scheda);
     const html = buildPDFHtml(s, negozio);
-    win.document.open();
+    const win = window.open("", "_blank");
+    if (!win) return;
     win.document.write(html);
     win.document.close();
   }
@@ -975,34 +973,30 @@ export default function Dashboard() {
   }
 
   async function stampaPDF(scheda: Scheda) {
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
     const s = await caricaFotoScheda(scheda);
     const html = buildPDFHtml(s, negozio);
-    win.document.open();
+    const win = window.open("", "_blank");
+    if (!win) return;
     win.document.write(html);
     win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 600);
+    win.onload = () => { win.focus(); win.print(); };
   }
 
-  async function apriPrivacy(scheda: Scheda) {
+  function apriPrivacy(scheda: Scheda) {
+    const html = buildPrivacyHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
-    const s = await caricaFotoScheda(scheda);
-    const html = buildPrivacyHtml(s, negozio);
-    win.document.open(); win.document.write(html); win.document.close();
+    win.document.write(html);
+    win.document.close();
   }
 
-  async function stampaPrivacy(scheda: Scheda) {
+  function stampaPrivacy(scheda: Scheda) {
+    const html = buildPrivacyHtml(scheda, negozio);
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
-    const s = await caricaFotoScheda(scheda);
-    const html = buildPrivacyHtml(s, negozio);
-    win.document.open(); win.document.write(html); win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 600);
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => { win.focus(); win.print(); };
   }
 
   async function inviaEmail(scheda: Scheda) {
@@ -1153,14 +1147,7 @@ export default function Dashboard() {
                   <button style={btn("#f59e0b", "#fff")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupModifica(s); }}>✏️ Modifica</button>
                   <button style={btn("#111827")} onClick={() => apriPDF(scheda)}>👁 Visualizza PDF</button>
                   <button style={btn("#2563eb")} onClick={() => stampaPDF(scheda)}>🖨️ Stampa</button>
-                  <button style={btn("#0891b2")} onClick={async () => {
-                    const win = window.open("","_blank");
-                    if(!win) return;
-                    win.document.write("<html><body><p style='font-family:Arial;padding:20px'>⏳ Caricamento...</p></body></html>");
-                    const s = await caricaFotoScheda(scheda);
-                    win.document.open(); win.document.write(buildDocumentiHtml(s)); win.document.close();
-                    setTimeout(()=>{win.focus();win.print();},600);
-                  }}>🪪 Stampa Doc.</button>
+                  <button style={btn("#0891b2")} onClick={async () => { const s = await caricaFotoScheda(scheda); const win = window.open("","_blank"); if(win){win.document.write(buildDocumentiHtml(s));win.document.close();setTimeout(()=>{win.focus();win.print();},600);} }}>🪪 Stampa Doc.</button>
                   <button style={btn("#059669")} onClick={async () => { const s = await caricaFotoScheda(scheda); setPopupOggetti(s); }}>📦 Oggetti</button>
                   <button style={btn("#7c3aed")} onClick={() => apriPrivacy(scheda)}>🔒 Privacy PDF</button>
                   <button style={btn("#6d28d9")} onClick={() => stampaPrivacy(scheda)}>🖨️ Stampa Privacy</button>
