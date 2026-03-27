@@ -319,6 +319,113 @@ export default function Impostazioni() {
           </button>
         </div>
 
+        {/* ---- GUIDA CAMPI ---- */}
+        <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "2px solid #2563eb" }}>
+          <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 16px", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "#2563eb" }}>
+            📖 Guida — Cosa appare nella scheda cliente
+          </h2>
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+            Questa leggenda spiega cosa viene mostrato in ogni sezione della scheda acquisti e dove vengono usati i dati.
+          </p>
+
+          {[
+            {
+              sezione: "1 — Documenti",
+              colore: "#111827",
+              campi: [
+                { nome: "📷 Carica Fronte / Retro", desc: "Foto della carta d'identità, patente o passaporto. Vengono usate per l'OCR automatico e salvate negli allegati della scheda." },
+                { nome: "🤖 Leggi documenti con Claude AI", desc: "Analizza le foto caricate e compila automaticamente tutti i campi del cliente (nome, cognome, CF, data nascita, ecc.)." },
+                { nome: "📸 Altre foto documento", desc: "Foto aggiuntive del documento (es. permesso di soggiorno). Appaiono nel tasto 🪪 Documenti della dashboard." },
+              ]
+            },
+            {
+              sezione: "2 — Dati Cliente",
+              colore: "#2563eb",
+              campi: [
+                { nome: "Cognome / Nome", desc: "Nome completo del cliente. Mentre scrivi appare l'autocomplete con i clienti già registrati — cliccali per caricare tutti i dati automaticamente." },
+                { nome: "Nato a / Data nascita", desc: "Luogo e data di nascita. Appaiono sulla scheda PDF e nella sezione 'Il Sottoscritto'." },
+                { nome: "Residente in / Comune / Provincia / CAP", desc: "Indirizzo completo del cliente. Appare sulla scheda PDF." },
+                { nome: "Tipo documento / Nr. documento", desc: "Tipo (Carta d'identità, Patente, Passaporto) e numero. Appaiono sulla scheda PDF nella riga 'Documento'." },
+                { nome: "Rilasciato da / Data rilascio / Scadenza", desc: "Dati del documento. Se il documento è scaduto appare un avviso rosso automatico quando carichi il cliente." },
+                { nome: "Codice Fiscale", desc: "Usato per identificare univocamente il cliente nel database. Se due clienti hanno lo stesso nome appare un avviso con il CF per distinguerli." },
+                { nome: "Telefono / Email", desc: "Contatti del cliente. L'email viene usata per inviargli la ricevuta dalla dashboard." },
+              ]
+            },
+            {
+              sezione: "3 — Oggetti Acquistati",
+              colore: "#d97706",
+              campi: [
+                { nome: "Descrizione", desc: "Tipo di oggetto. Inizia a scrivere e appare l'autocomplete con gli oggetti più comuni (anello, bracciale, collanina, ecc.)." },
+                { nome: "AU / AG", desc: "Seleziona se l'oggetto è in oro (AU) o argento (AG). Influenza il calcolo del peso totale." },
+                { nome: "Peso AU / Peso AG (g)", desc: "Grammi dell'oggetto. Vengono sommati automaticamente sotto la lista oggetti e mostrati nelle statistiche della dashboard." },
+                { nome: "Valore €", desc: "Importo pagato per quell'oggetto. Viene sommato nel totale in fondo." },
+                { nome: "📸 Foto oggetto", desc: "Foto dell'oggetto acquistato. Visibili dalla dashboard col tasto 📦 Oggetti. Non appaiono sulla scheda PDF principale." },
+                { nome: "Riepilogo grammi", desc: "In fondo alla lista appare il totale grammi AU (oro, giallo) e AG (argento, grigio) separati, più il totale valore." },
+              ]
+            },
+            {
+              sezione: "4 — Firma del Cliente",
+              colore: "#059669",
+              campi: [
+                { nome: "Testo dichiarazione", desc: "Il cliente legge e firma dichiarando che gli oggetti sono di sua proprietà. Testo fisso non modificabile." },
+                { nome: "Firma cliente", desc: "Firma con il dito sullo schermo. Obbligatoria per salvare la scheda. Appare in fondo al PDF." },
+                { nome: "Firma titolare", desc: "La firma del titolare del negozio caricata nelle Impostazioni. Appare automaticamente su ogni scheda senza che il titolare debba firmare ogni volta." },
+              ]
+            },
+            {
+              sezione: "5 — Dati Operazione",
+              colore: "#7c3aed",
+              campi: [
+                { nome: "Data operazione", desc: "Data della transazione. Pre-compilata con oggi, modificabile se necessario." },
+                { nome: "Mezzo di pagamento", desc: "Contanti, Bonifico o Assegno. Appare sulla scheda PDF e nella ricevuta riepilogativa." },
+                { nome: "CRO / TRN", desc: "Codice del bonifico bancario. Appare solo se presente." },
+                { nome: "Note operazione", desc: "Note libere sull'operazione. Non appaiono nel PDF pubblico ma sono visibili nella dashboard." },
+              ]
+            },
+            {
+              sezione: "7 — Firma Ricevuta Riepilogativa",
+              colore: "#0284c7",
+              campi: [
+                { nome: "Firma per ricevuta", desc: "Seconda firma del cliente che conferma di aver ricevuto il pagamento. Obbligatoria. Appare in fondo al PDF come 'Per Consegna Ricevuta'." },
+              ]
+            },
+            {
+              sezione: "Privacy — Popup",
+              colore: "#dc2626",
+              campi: [
+                { nome: "3 consensi con firma", desc: "Si apre automaticamente prima del salvataggio per i nuovi clienti. Il cliente seleziona Acconsento/Non Acconsento e firma per ognuno dei 3 punti. Se il cliente è già registrato con privacy firmata, il popup non appare." },
+                { nome: "PDF Privacy separato", desc: "Dalla dashboard il tasto 🔒 Privacy PDF apre il documento privacy del cliente con i consensi e le firme. Non appare nella scheda principale." },
+              ]
+            },
+            {
+              sezione: "Dashboard — Tasti per ogni scheda",
+              colore: "#374151",
+              campi: [
+                { nome: "👁 Visualizza PDF", desc: "Apre la scheda completa in PDF: titolo negozio, dati cliente, oggetti, dichiarazione, firme, Plus Valenza." },
+                { nome: "🖨️ Stampa", desc: "Apre il PDF e lancia la stampa automaticamente." },
+                { nome: "📦 Oggetti", desc: "Mostra la lista oggetti con descrizione e grammi, più le foto degli oggetti. Permette di aggiungere nuove foto anche dopo il salvataggio." },
+                { nome: "🪪 Documenti", desc: "Mostra fronte, retro e allegati del documento di identità del cliente." },
+                { nome: "🔒 Privacy PDF", desc: "Apre il documento privacy con i 3 consensi e le firme del cliente." },
+                { nome: "📧 Invia Email", desc: "Invia la ricevuta all'email del cliente (richiede configurazione EmailJS nelle Impostazioni)." },
+              ]
+            },
+          ].map(({ sezione, colore, campi }) => (
+            <div key={sezione} style={{ marginBottom: 20, border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+              <div style={{ background: colore, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
+                {sezione}
+              </div>
+              <div style={{ padding: "12px 16px" }}>
+                {campi.map(({ nome, desc }) => (
+                  <div key={nome} style={{ display: "flex", gap: 12, marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid #f3f4f6" }}>
+                    <div style={{ minWidth: 200, fontSize: 13, fontWeight: 700, color: "#374151" }}>{nome}</div>
+                    <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+
         {/* ---- ZONA PERICOLOSA ---- */}
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 40, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "2px solid #dc2626" }}>
           <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "#dc2626" }}>
