@@ -6,17 +6,16 @@ type NegozioData = {
   nome: string; indirizzo: string; comune: string; provincia: string;
   cap: string; piva: string; telefono: string; email: string;
   firma_base64: string; logo_base64: string;
-  numero_scheda_iniziale: number; testo_privacy: string;
+  numero_scheda_iniziale: number; testo_privacy: string; testo_guida: string;
 };
 
 const empty: NegozioData = {
   nome: "", indirizzo: "", comune: "", provincia: "", cap: "",
   piva: "", telefono: "", email: "",
   firma_base64: "", logo_base64: "",
-  numero_scheda_iniziale: 1, testo_privacy: "",
+  numero_scheda_iniziale: 1, testo_privacy: "", testo_guida: "",
 };
 
-// Password per il reset — cambiala qui se vuoi
 const RESET_PASSWORD = "dav1965883883";
 
 function fileToBase64(file: File): Promise<string> {
@@ -113,7 +112,6 @@ export default function Impostazioni() {
   const logoRef = useRef<HTMLInputElement>(null);
   const firmaFileRef = useRef<HTMLInputElement>(null);
 
-  // Reset state
   const [showReset, setShowReset] = useState(false);
   const [resetPassword, setResetPassword] = useState("");
   const [resetErrore, setResetErrore] = useState("");
@@ -136,6 +134,7 @@ export default function Impostazioni() {
         firma_base64: row.firma_base64 || "", logo_base64: row.logo_base64 || "",
         numero_scheda_iniziale: row.numero_scheda_iniziale || 1,
         testo_privacy: row.testo_privacy || "",
+        testo_guida: row.testo_guida || "",
       });
       if (row.firma_base64) setFirmaPreview(`data:image/png;base64,${row.firma_base64}`);
       if (row.logo_base64) setLogoPreview(`data:image/png;base64,${row.logo_base64}`);
@@ -174,6 +173,7 @@ export default function Impostazioni() {
         logo_base64: data.logo_base64,
         numero_scheda_iniziale: data.numero_scheda_iniziale,
         testo_privacy: data.testo_privacy,
+        testo_guida: data.testo_guida,
       });
       if (error) throw new Error(error.message);
       setStatus({ text: "✅ Impostazioni salvate!", type: "success" });
@@ -192,12 +192,10 @@ export default function Impostazioni() {
     setResetErrore("");
     setResetando(true);
     try {
-      // Cancella in ordine (rispettando le foreign key)
       await supabase.from("foto_scheda").delete().neq("id", 0);
       await supabase.from("oggetti").delete().neq("id", 0);
       await supabase.from("operazioni").delete().neq("id", 0);
       await supabase.from("clienti").delete().neq("id", 0);
-
       setResetOk(true);
       setShowReset(false);
       setResetPassword("");
@@ -264,7 +262,6 @@ export default function Impostazioni() {
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Firma del Titolare</h2>
           <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Questa firma apparirà automaticamente su ogni scheda acquisti.</p>
-
           {firmaPreview && data.firma_base64 ? (
             <div>
               <img src={firmaPreview} alt="Firma titolare" style={{ maxWidth: "100%", height: 100, objectFit: "contain", border: "1.5px solid #059669", borderRadius: 10, background: "#fafafa", display: "block" }} />
@@ -273,20 +270,11 @@ export default function Impostazioni() {
           ) : (
             <div>
               <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                <button type="button"
-                  style={{ ...btn(firmaMode === "disegna" ? "#111827" : "#f3f4f6", firmaMode === "disegna" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }}
-                  onClick={() => setFirmaMode("disegna")}>✏️ Disegna</button>
-                <button type="button"
-                  style={{ ...btn(firmaMode === "carica" ? "#111827" : "#f3f4f6", firmaMode === "carica" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }}
-                  onClick={() => setFirmaMode("carica")}>📁 Carica file</button>
+                <button type="button" style={{ ...btn(firmaMode === "disegna" ? "#111827" : "#f3f4f6", firmaMode === "disegna" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }} onClick={() => setFirmaMode("disegna")}>✏️ Disegna</button>
+                <button type="button" style={{ ...btn(firmaMode === "carica" ? "#111827" : "#f3f4f6", firmaMode === "carica" ? "#fff" : "#374151"), fontSize: 13, padding: "8px 18px" }} onClick={() => setFirmaMode("carica")}>📁 Carica file</button>
               </div>
-
               {firmaMode === "disegna" ? (
-                <SignaturePad
-                  hasFirma={!!data.firma_base64}
-                  onSave={(dataUrl) => { const b64 = dataUrl.split(",")[1]; u("firma_base64", b64); setFirmaPreview(dataUrl); }}
-                  onClear={() => { u("firma_base64", ""); setFirmaPreview(""); }}
-                />
+                <SignaturePad hasFirma={!!data.firma_base64} onSave={(dataUrl) => { const b64 = dataUrl.split(",")[1]; u("firma_base64", b64); setFirmaPreview(dataUrl); }} onClear={() => { u("firma_base64", ""); setFirmaPreview(""); }} />
               ) : (
                 <div style={{ border: "2px dashed #d1d5db", borderRadius: 10, padding: 32, textAlign: "center", background: "#fafafa" }}>
                   <div style={{ fontSize: 40, marginBottom: 12 }}>🖊️</div>
@@ -304,12 +292,7 @@ export default function Impostazioni() {
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>Testo Informativa Privacy</h2>
           <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>Questo testo verrà mostrato al cliente prima della firma sulla scheda acquisti.</p>
-          <textarea
-            style={{ ...inp, height: 280, paddingTop: 12, lineHeight: 1.6, resize: "vertical" }}
-            value={data.testo_privacy}
-            onChange={e => u("testo_privacy", e.target.value)}
-            placeholder="Inserisci qui il testo della tua informativa privacy..."
-          />
+          <textarea style={{ ...inp, height: 280, paddingTop: 12, lineHeight: 1.6, resize: "vertical" }} value={data.testo_privacy} onChange={e => u("testo_privacy", e.target.value)} placeholder="Inserisci qui il testo della tua informativa privacy..." />
         </section>
 
         {/* Salva */}
@@ -319,111 +302,25 @@ export default function Impostazioni() {
           </button>
         </div>
 
-        {/* ---- GUIDA CAMPI ---- */}
+        {/* ---- GUIDA / NOTE OPERATIVE ---- */}
         <section style={{ background: "#fff", borderRadius: 14, padding: 24, marginBottom: 20, boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "2px solid #2563eb" }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 16px", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "#2563eb" }}>
-            📖 Guida — Cosa appare nella scheda cliente
+          <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 6px", textTransform: "uppercase" as const, letterSpacing: "0.05em", color: "#2563eb" }}>
+            📖 Note Operative / Guida
           </h2>
-          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
-            Questa leggenda spiega cosa viene mostrato in ogni sezione della scheda acquisti e dove vengono usati i dati.
+          <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+            Scrivi qui le tue note operative, istruzioni per i dipendenti o promemoria. Puoi modificarlo in qualsiasi momento e salvarlo col tasto verde in fondo.
           </p>
-
-          {[
-            {
-              sezione: "1 — Documenti",
-              colore: "#111827",
-              campi: [
-                { nome: "📷 Carica Fronte / Retro", desc: "Foto della carta d'identità, patente o passaporto. Vengono usate per l'OCR automatico e salvate negli allegati della scheda." },
-                { nome: "🤖 Leggi documenti con Claude AI", desc: "Analizza le foto caricate e compila automaticamente tutti i campi del cliente (nome, cognome, CF, data nascita, ecc.)." },
-                { nome: "📸 Altre foto documento", desc: "Foto aggiuntive del documento (es. permesso di soggiorno). Appaiono nel tasto 🪪 Documenti della dashboard." },
-              ]
-            },
-            {
-              sezione: "2 — Dati Cliente",
-              colore: "#2563eb",
-              campi: [
-                { nome: "Cognome / Nome", desc: "Nome completo del cliente. Mentre scrivi appare l'autocomplete con i clienti già registrati — cliccali per caricare tutti i dati automaticamente." },
-                { nome: "Nato a / Data nascita", desc: "Luogo e data di nascita. Appaiono sulla scheda PDF e nella sezione 'Il Sottoscritto'." },
-                { nome: "Residente in / Comune / Provincia / CAP", desc: "Indirizzo completo del cliente. Appare sulla scheda PDF." },
-                { nome: "Tipo documento / Nr. documento", desc: "Tipo (Carta d'identità, Patente, Passaporto) e numero. Appaiono sulla scheda PDF nella riga 'Documento'." },
-                { nome: "Rilasciato da / Data rilascio / Scadenza", desc: "Dati del documento. Se il documento è scaduto appare un avviso rosso automatico quando carichi il cliente." },
-                { nome: "Codice Fiscale", desc: "Usato per identificare univocamente il cliente nel database. Se due clienti hanno lo stesso nome appare un avviso con il CF per distinguerli." },
-                { nome: "Telefono / Email", desc: "Contatti del cliente. L'email viene usata per inviargli la ricevuta dalla dashboard." },
-              ]
-            },
-            {
-              sezione: "3 — Oggetti Acquistati",
-              colore: "#d97706",
-              campi: [
-                { nome: "Descrizione", desc: "Tipo di oggetto. Inizia a scrivere e appare l'autocomplete con gli oggetti più comuni (anello, bracciale, collanina, ecc.)." },
-                { nome: "AU / AG", desc: "Seleziona se l'oggetto è in oro (AU) o argento (AG). Influenza il calcolo del peso totale." },
-                { nome: "Peso AU / Peso AG (g)", desc: "Grammi dell'oggetto. Vengono sommati automaticamente sotto la lista oggetti e mostrati nelle statistiche della dashboard." },
-                { nome: "Valore €", desc: "Importo pagato per quell'oggetto. Viene sommato nel totale in fondo." },
-                { nome: "📸 Foto oggetto", desc: "Foto dell'oggetto acquistato. Visibili dalla dashboard col tasto 📦 Oggetti. Non appaiono sulla scheda PDF principale." },
-                { nome: "Riepilogo grammi", desc: "In fondo alla lista appare il totale grammi AU (oro, giallo) e AG (argento, grigio) separati, più il totale valore." },
-              ]
-            },
-            {
-              sezione: "4 — Firma del Cliente",
-              colore: "#059669",
-              campi: [
-                { nome: "Testo dichiarazione", desc: "Il cliente legge e firma dichiarando che gli oggetti sono di sua proprietà. Testo fisso non modificabile." },
-                { nome: "Firma cliente", desc: "Firma con il dito sullo schermo. Obbligatoria per salvare la scheda. Appare in fondo al PDF." },
-                { nome: "Firma titolare", desc: "La firma del titolare del negozio caricata nelle Impostazioni. Appare automaticamente su ogni scheda senza che il titolare debba firmare ogni volta." },
-              ]
-            },
-            {
-              sezione: "5 — Dati Operazione",
-              colore: "#7c3aed",
-              campi: [
-                { nome: "Data operazione", desc: "Data della transazione. Pre-compilata con oggi, modificabile se necessario." },
-                { nome: "Mezzo di pagamento", desc: "Contanti, Bonifico o Assegno. Appare sulla scheda PDF e nella ricevuta riepilogativa." },
-                { nome: "CRO / TRN", desc: "Codice del bonifico bancario. Appare solo se presente." },
-                { nome: "Note operazione", desc: "Note libere sull'operazione. Non appaiono nel PDF pubblico ma sono visibili nella dashboard." },
-              ]
-            },
-            {
-              sezione: "7 — Firma Ricevuta Riepilogativa",
-              colore: "#0284c7",
-              campi: [
-                { nome: "Firma per ricevuta", desc: "Seconda firma del cliente che conferma di aver ricevuto il pagamento. Obbligatoria. Appare in fondo al PDF come 'Per Consegna Ricevuta'." },
-              ]
-            },
-            {
-              sezione: "Privacy — Popup",
-              colore: "#dc2626",
-              campi: [
-                { nome: "3 consensi con firma", desc: "Si apre automaticamente prima del salvataggio per i nuovi clienti. Il cliente seleziona Acconsento/Non Acconsento e firma per ognuno dei 3 punti. Se il cliente è già registrato con privacy firmata, il popup non appare." },
-                { nome: "PDF Privacy separato", desc: "Dalla dashboard il tasto 🔒 Privacy PDF apre il documento privacy del cliente con i consensi e le firme. Non appare nella scheda principale." },
-              ]
-            },
-            {
-              sezione: "Dashboard — Tasti per ogni scheda",
-              colore: "#374151",
-              campi: [
-                { nome: "👁 Visualizza PDF", desc: "Apre la scheda completa in PDF: titolo negozio, dati cliente, oggetti, dichiarazione, firme, Plus Valenza." },
-                { nome: "🖨️ Stampa", desc: "Apre il PDF e lancia la stampa automaticamente." },
-                { nome: "📦 Oggetti", desc: "Mostra la lista oggetti con descrizione e grammi, più le foto degli oggetti. Permette di aggiungere nuove foto anche dopo il salvataggio." },
-                { nome: "🪪 Documenti", desc: "Mostra fronte, retro e allegati del documento di identità del cliente." },
-                { nome: "🔒 Privacy PDF", desc: "Apre il documento privacy con i 3 consensi e le firme del cliente." },
-                { nome: "📧 Invia Email", desc: "Invia la ricevuta all'email del cliente (richiede configurazione EmailJS nelle Impostazioni)." },
-              ]
-            },
-          ].map(({ sezione, colore, campi }) => (
-            <div key={sezione} style={{ marginBottom: 20, border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
-              <div style={{ background: colore, color: "#fff", padding: "10px 16px", fontSize: 13, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.05em" }}>
-                {sezione}
-              </div>
-              <div style={{ padding: "12px 16px" }}>
-                {campi.map(({ nome, desc }) => (
-                  <div key={nome} style={{ display: "flex", gap: 12, marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <div style={{ minWidth: 200, fontSize: 13, fontWeight: 700, color: "#374151" }}>{nome}</div>
-                    <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>{desc}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <textarea
+            style={{ ...inp, height: 400, paddingTop: 12, lineHeight: 1.8, resize: "vertical", fontSize: 14, fontFamily: "Arial, sans-serif" }}
+            value={data.testo_guida}
+            onChange={e => u("testo_guida", e.target.value)}
+            placeholder={"Scrivi qui le tue note operative...\n\nEsempio:\n\n📋 COME COMPILARE UNA SCHEDA\n1. Carica fronte e retro del documento\n2. Premi 'Leggi documenti con Claude AI'\n3. Verifica i dati compilati automaticamente\n4. Compila gli oggetti acquistati\n5. Fai firmare il cliente\n6. Premi Salva\n\n⚠️ ATTENZIONE\n- Controllare sempre la scadenza del documento\n- Il codice fiscale deve essere di 16 caratteri\n- La firma è obbligatoria per salvare"}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+            <button style={{ ...btn(saving ? "#9ca3af" : "#2563eb"), fontSize: 14, padding: "10px 28px" }} onClick={salva} disabled={saving}>
+              {saving ? "⏳ Salvataggio..." : "💾 Salva Note"}
+            </button>
+          </div>
         </section>
 
         {/* ---- ZONA PERICOLOSA ---- */}
@@ -434,67 +331,36 @@ export default function Impostazioni() {
           <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
             Le operazioni qui sotto sono <strong>irreversibili</strong>. I dati cancellati non possono essere recuperati.
           </p>
-
           {resetOk && (
             <div style={{ background: "#d1fae5", border: "1px solid #059669", borderRadius: 8, padding: "10px 16px", marginBottom: 16, fontSize: 14, color: "#065f46", fontWeight: 600 }}>
               ✅ Reset completato — tutti i clienti e le schede sono stati eliminati.
             </div>
           )}
-
           {!showReset ? (
-            <button
-              style={{ ...btn("#dc2626"), fontSize: 14 }}
-              onClick={() => { setShowReset(true); setResetOk(false); setResetErrore(""); setResetPassword(""); }}
-            >
+            <button style={{ ...btn("#dc2626"), fontSize: 14 }} onClick={() => { setShowReset(true); setResetOk(false); setResetErrore(""); setResetPassword(""); }}>
               🗑 Azzera clienti e schede
             </button>
           ) : (
             <div style={{ background: "#fef2f2", border: "1.5px solid #dc2626", borderRadius: 12, padding: 20 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#dc2626", marginBottom: 8 }}>
-                🚨 Sei sicuro di voler cancellare TUTTO?
-              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: "#dc2626", marginBottom: 8 }}>🚨 Sei sicuro di voler cancellare TUTTO?</div>
               <p style={{ fontSize: 13, color: "#7f1d1d", marginBottom: 16, lineHeight: 1.6 }}>
                 Verranno eliminati definitivamente:<br />
                 • Tutti i clienti registrati<br />
                 • Tutte le schede acquisto<br />
                 • Tutti gli oggetti e le foto<br />
-                • Tutte le firme e i documenti<br />
-                <br />
+                • Tutte le firme e i documenti<br /><br />
                 <strong>I dati del negozio e le impostazioni NON verranno toccati.</strong>
               </p>
-
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", display: "block", marginBottom: 6 }}>
-                  Inserisci la password per confermare
-                </label>
-                <input
-                  type="password"
-                  style={{ ...inp, border: "1.5px solid #dc2626", maxWidth: 300 }}
-                  value={resetPassword}
-                  onChange={e => { setResetPassword(e.target.value); setResetErrore(""); }}
-                  placeholder="Password..."
-                  onKeyDown={e => { if (e.key === "Enter") eseguiReset(); }}
-                />
+                <label style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase" as const, color: "#6b7280", display: "block", marginBottom: 6 }}>Inserisci la password per confermare</label>
+                <input type="password" style={{ ...inp, border: "1.5px solid #dc2626", maxWidth: 300 }} value={resetPassword} onChange={e => { setResetPassword(e.target.value); setResetErrore(""); }} placeholder="Password..." onKeyDown={e => { if (e.key === "Enter") eseguiReset(); }} />
               </div>
-
-              {resetErrore && (
-                <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{resetErrore}</div>
-              )}
-
+              {resetErrore && <div style={{ color: "#dc2626", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{resetErrore}</div>}
               <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  style={{ ...btn(resetando ? "#9ca3af" : "#dc2626"), fontSize: 14 }}
-                  onClick={eseguiReset}
-                  disabled={resetando || !resetPassword}
-                >
+                <button style={{ ...btn(resetando ? "#9ca3af" : "#dc2626"), fontSize: 14 }} onClick={eseguiReset} disabled={resetando || !resetPassword}>
                   {resetando ? "⏳ Eliminazione in corso..." : "🗑 Conferma eliminazione"}
                 </button>
-                <button
-                  style={{ ...btn("#f3f4f6", "#374151"), fontSize: 14 }}
-                  onClick={() => { setShowReset(false); setResetPassword(""); setResetErrore(""); }}
-                >
-                  Annulla
-                </button>
+                <button style={{ ...btn("#f3f4f6", "#374151"), fontSize: 14 }} onClick={() => { setShowReset(false); setResetPassword(""); setResetErrore(""); }}>Annulla</button>
               </div>
             </div>
           )}
